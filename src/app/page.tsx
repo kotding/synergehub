@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { FeatureCard } from '@/components/feature-card';
 import { MessageSquare, Music, Gamepad2, FileText, LogOut } from 'lucide-react';
 import Link from 'next/link';
@@ -11,17 +12,18 @@ export default function Home() {
   const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && user && !profile) {
+      router.replace('/create-profile');
+    }
+  }, [user, profile, loading, router]);
+
+  if (loading || (user && !profile)) {
     return (
       <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-8 md:p-12">
         <div className="text-2xl font-bold">Đang tải...</div>
       </main>
-    )
-  }
-
-  if (user && !profile) {
-    router.replace('/create-profile');
-    return null;
+    );
   }
 
   return (
