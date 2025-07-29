@@ -1,15 +1,44 @@
+"use client";
+
 import { FeatureCard } from '@/components/feature-card';
-import { MessageSquare, Music, Gamepad2, FileText } from 'lucide-react';
+import { MessageSquare, Music, Gamepad2, FileText, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/use-auth';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const { user, profile, loading, signOut } = useAuth();
+  const router = useRouter();
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-8 md:p-12">
+        <div className="text-2xl font-bold">Đang tải...</div>
+      </main>
+    )
+  }
+
+  if (user && !profile) {
+    router.replace('/create-profile');
+    return null;
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-8 md:p-12 relative overflow-hidden">
-      <div className="absolute top-4 right-4 z-20">
-        <Button asChild>
-          <Link href="/login">Đăng nhập</Link>
-        </Button>
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
+        {user ? (
+          <>
+            <span className="text-muted-foreground">Welcome back, {profile?.nickname}!</span>
+            <Button variant="ghost" size="icon" onClick={signOut} title="Đăng xuất">
+              <LogOut />
+            </Button>
+          </>
+        ) : (
+          <Button asChild>
+            <Link href="/login">Đăng nhập</Link>
+          </Button>
+        )}
       </div>
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:24px_24px]"></div>
       <div className="text-center mb-12 z-10">
