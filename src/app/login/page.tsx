@@ -25,6 +25,14 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   const handleLogin = async () => {
+    if (!username.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập tên người dùng.",
+        variant: "destructive",
+      });
+      return;
+    }
     // Firebase Auth uses email for authentication. We'll use the username as the email's local part.
     // This is a common pattern for username-based auth with Firebase.
     const email = `${username}@synergyhub.app`;
@@ -67,6 +75,7 @@ export default function LoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               />
             </div>
             <div className="grid gap-2">
@@ -77,6 +86,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               />
             </div>
             <Button onClick={handleLogin} disabled={loading} className="w-full">

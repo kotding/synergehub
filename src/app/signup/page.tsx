@@ -54,6 +54,10 @@ export default function SignupPage() {
       toast({ title: "Lỗi", description: "Mật khẩu không khớp.", variant: "destructive" });
       return;
     }
+    if (!username.trim()) {
+      toast({ title: "Lỗi", description: "Tên người dùng không được để trống.", variant: "destructive" });
+      return;
+    }
     if (username.length > 15) {
       toast({ title: "Lỗi", description: "Tên người dùng không được quá 15 ký tự.", variant: "destructive" });
       return;
@@ -101,7 +105,10 @@ export default function SignupPage() {
       console.error("Error signing up: ", error);
       if (error.code === 'auth/email-already-in-use') {
         toast({ title: "Lỗi", description: "Tên người dùng này đã tồn tại.", variant: "destructive" });
-      } else {
+      } else if (error.code === 'auth/invalid-email') {
+        toast({ title: "Lỗi", description: "Tên người dùng không hợp lệ.", variant: "destructive" });
+      }
+      else {
         toast({ title: "Lỗi", description: "Đã có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", variant: "destructive" });
       }
     } finally {
