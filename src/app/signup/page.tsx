@@ -50,16 +50,9 @@ export default function SignupPage() {
 
 
   const handleSignUp = async () => {
-    if (password !== confirmPassword) {
-      toast({ title: "Lỗi", description: "Mật khẩu không khớp.", variant: "destructive" });
-      return;
-    }
+    // --- Start Validation ---
     if (!username.trim()) {
       toast({ title: "Lỗi", description: "Tên người dùng không được để trống.", variant: "destructive" });
-      return;
-    }
-    if (username.length > 15) {
-      toast({ title: "Lỗi", description: "Tên người dùng không được quá 15 ký tự.", variant: "destructive" });
       return;
     }
      if (!nickname.trim()) {
@@ -70,21 +63,36 @@ export default function SignupPage() {
       toast({ title: "Lỗi", description: "Mật khẩu phải có ít nhất 6 ký tự.", variant: "destructive" });
       return;
     }
+    if (password !== confirmPassword) {
+      toast({ title: "Lỗi", description: "Mật khẩu không khớp.", variant: "destructive" });
+      return;
+    }
+    if (username.length > 15) {
+      toast({ title: "Lỗi", description: "Tên người dùng không được quá 15 ký tự.", variant: "destructive" });
+      return;
+    }
+    // --- End Validation ---
 
-    const email = `${username}@synergyhub.app`;
     setLoading(true);
+    const email = `${username}@synergyhub.app`;
 
     try {
       // 1. Create user in Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 2. Upload avatar if it exists
+      // 2. Upload avatar if it exists, otherwise use placeholder
       let avatarUrl = "https://placehold.co/128x128.png";
       if (avatarFile) {
-        const storageRef = ref(storage, `avatars/${user.uid}`);
-        await uploadString(storageRef, avatarFile, 'data_url');
-        avatarUrl = await getDownloadURL(storageRef);
+        try {
+            const storageRef = ref(storage, `avatars/${user.uid}`);
+            await uploadString(storageRef, avatarFile, 'data_url');
+            avatarUrl = await getDownloadURL(storageRef);
+        } catch (storageError) {
+            console.error("Error uploading avatar: ", storageError);
+            toast({ title: "Lỗi tải ảnh", description: "Không thể tải lên ảnh đại diện, sẽ sử dụng ảnh mặc định.", variant: "destructive" });
+            // Continue with default avatar
+        }
       }
 
       // 3. Create user profile in Firestore
@@ -107,6 +115,8 @@ export default function SignupPage() {
         toast({ title: "Lỗi", description: "Tên người dùng này đã tồn tại.", variant: "destructive" });
       } else if (error.code === 'auth/invalid-email') {
         toast({ title: "Lỗi", description: "Tên người dùng không hợp lệ.", variant: "destructive" });
+      } else if (error.code === 'auth/weak-password') {
+        toast({ title: "Lỗi", description: "Mật khẩu quá yếu.", variant: "destructive" });
       }
       else {
         toast({ title: "Lỗi", description: "Đã có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", variant: "destructive" });
@@ -128,7 +138,7 @@ export default function SignupPage() {
         <CardContent className="space-y-4">
            <div className="space-y-2">
               <Label htmlFor="username">Tên người dùng</Label>
-              <Input id="username" placeholder="Tối đa 15 ký tự" required value={username} onChange={(e) => setUsername(e.target.value)} />
+              <Input id="username" placeholder="Tối đa 15 ký tự" required value={username} onChange={(e) => setUsername(e.target.value.trim())} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Mật khẩu</Label>
@@ -143,7 +153,7 @@ export default function SignupPage() {
 
             <div className="flex items-center space-x-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={avatarPreview} />
+                <AvatarImage src={avatarPreview} data-ai-hint="avatar placeholder" />
                 <AvatarFallback>AV</AvatarFallback>
               </Avatar>
               <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
