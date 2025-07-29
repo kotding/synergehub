@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, setDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,7 +26,20 @@ export default function CreateProfilePage() {
   const { toast } = useToast();
   const [nickname, setNickname] = useState("");
   const [bio, setBio] = useState("");
+  const [avatar, setAvatar] = useState("https://placehold.co/128x128.png");
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSaveProfile = async () => {
     if (!user) {
@@ -49,10 +62,12 @@ export default function CreateProfilePage() {
 
     setLoading(true);
     try {
+      // In a real app, you'd upload the avatar to Firebase Storage
+      // and get a URL. For now, we'll just save the data URL or placeholder.
       await setDoc(doc(db, "users", user.uid), {
         nickname: nickname,
         bio: bio,
-        avatar: "https://placehold.co/128x128.png", // Default avatar
+        avatar: avatar,
       });
       toast({
         title: "Thành công",
@@ -83,10 +98,22 @@ export default function CreateProfilePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src="https://placehold.co/128x128.png" />
+              <AvatarImage src={avatar} />
               <AvatarFallback>AV</AvatarFallback>
             </Avatar>
-            <Button variant="outline" disabled>Thay đổi ảnh đại diện</Button>
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Thay đổi ảnh đại diện
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleAvatarChange}
+              className="hidden"
+              accept="image/*"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="nickname">Nickname</Label>
