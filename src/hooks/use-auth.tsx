@@ -15,6 +15,7 @@ interface UserProfile {
   nickname: string;
   bio: string;
   avatar: string;
+  role: 'user' | 'admin';
 }
 
 interface AuthContextType {

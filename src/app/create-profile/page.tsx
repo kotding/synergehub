@@ -78,6 +78,7 @@ export default function CreateProfilePage() {
         nickname: nickname,
         bio: bio,
         avatar: avatarUrl,
+        role: 'user', // Default role for new users
       });
       toast({
         title: "Thành công",

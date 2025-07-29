@@ -13,12 +13,20 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && user && !profile) {
-      router.replace('/create-profile');
+    if (!loading) {
+      if (!user) {
+        // If not loading and no user, redirect to login
+        router.replace('/login');
+      } else if (!profile) {
+        // If user exists but no profile, redirect to create profile
+        router.replace('/create-profile');
+      }
     }
   }, [user, profile, loading, router]);
-
-  if (loading || (user && !profile)) {
+  
+  // While loading or if redirection is happening, show a loading indicator.
+  // This prevents a flash of the home page content for unauthenticated users.
+  if (loading || !user || !profile) {
     return (
       <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-8 md:p-12">
         <div className="text-2xl font-bold">Đang tải...</div>
@@ -29,18 +37,12 @@ export default function Home() {
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-8 md:p-12 relative overflow-hidden">
       <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
-        {user ? (
           <>
-            <span className="text-muted-foreground">Welcome back, {profile?.nickname}!</span>
+            <span className="text-muted-foreground">Welcome back, {profile?.nickname}! {profile?.role === 'admin' && '(Admin)'}</span>
             <Button variant="ghost" size="icon" onClick={signOut} title="Đăng xuất">
               <LogOut />
             </Button>
           </>
-        ) : (
-          <Button asChild>
-            <Link href="/login">Đăng nhập</Link>
-          </Button>
-        )}
       </div>
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:24px_24px]"></div>
       <div className="text-center mb-12 z-10">
