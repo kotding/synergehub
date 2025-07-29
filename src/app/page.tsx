@@ -13,16 +13,10 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        // If not loading and no user, redirect to login
-        router.replace('/login');
-      } else if (!profile) {
-        // If user exists but no profile, redirect to create profile
-        router.replace('/create-profile');
-      }
+    if (!loading && !user) {
+      router.replace('/login');
     }
-  }, [user, profile, loading, router]);
+  }, [user, loading, router]);
   
   // While loading or if redirection is happening, show a loading indicator.
   // This prevents a flash of the home page content for unauthenticated users.
