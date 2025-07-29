@@ -3,8 +3,9 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, setDoc } from "firebase/firestore";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/hooks/use-auth";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,7 +27,8 @@ export default function CreateProfilePage() {
   const { toast } = useToast();
   const [nickname, setNickname] = useState("");
   const [bio, setBio] = useState("");
-  const [avatar, setAvatar] = useState("https://placehold.co/128x128.png");
+  const [avatarPreview, setAvatarPreview] = useState("https://placehold.co/128x128.png");
+  const [avatarFile, setAvatarFile] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,7 +37,9 @@ export default function CreateProfilePage() {
       const file = e.target.files[0];
       const reader = new FileReader();
       reader.onloadend = () => {
-        setAvatar(reader.result as string);
+        const result = reader.result as string;
+        setAvatarPreview(result);
+        setAvatarFile(result);
       };
       reader.readAsDataURL(file);
     }
@@ -62,12 +66,18 @@ export default function CreateProfilePage() {
 
     setLoading(true);
     try {
-      // In a real app, you'd upload the avatar to Firebase Storage
-      // and get a URL. For now, we'll just save the data URL or placeholder.
+      let avatarUrl = "https://placehold.co/128x128.png";
+      
+      if (avatarFile) {
+        const storageRef = ref(storage, `avatars/${user.uid}`);
+        await uploadString(storageRef, avatarFile, 'data_url');
+        avatarUrl = await getDownloadURL(storageRef);
+      }
+
       await setDoc(doc(db, "users", user.uid), {
         nickname: nickname,
         bio: bio,
-        avatar: avatar,
+        avatar: avatarUrl,
       });
       toast({
         title: "Thành công",
@@ -98,7 +108,7 @@ export default function CreateProfilePage() {
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src={avatar} />
+              <AvatarImage src={avatarPreview} />
               <AvatarFallback>AV</AvatarFallback>
             </Avatar>
             <Button

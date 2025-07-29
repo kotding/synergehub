@@ -1,11 +1,12 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   "projectId": "synergy-hub-yviyl",
   "appId": "1:102111219497:web:4a5b54b0ec7fd043f13138",
-  "storageBucket": "synergy-hub-yviyl.firebasestorage.app",
+  "storageBucket": "synergy-hub-yviyl.appspot.com",
   "apiKey": "AIzaSyBdCaTFR7RVrAjk7WTGbAuWfVZ8tyNuYMY",
   "authDomain": "synergy-hub-yviyl.firebaseapp.com",
   "measurementId": "",
@@ -16,5 +17,6 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
-export { app, auth, db };
+export { app, auth, db, storage };
