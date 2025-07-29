@@ -1,9 +1,16 @@
 import { FeatureCard } from '@/components/feature-card';
 import { MessageSquare, Music, Gamepad2, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function Home() {
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4 sm:p-8 md:p-12 relative overflow-hidden">
+      <div className="absolute top-4 right-4 z-20">
+        <Button asChild>
+          <Link href="/login">Đăng nhập</Link>
+        </Button>
+      </div>
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:24px_24px]"></div>
       <div className="text-center mb-12 z-10">
         <h1 className="font-headline text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-primary via-accent to-primary animate-gradient-xy">
