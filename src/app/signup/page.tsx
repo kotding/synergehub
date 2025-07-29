@@ -3,10 +3,17 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+} from "firebase/firestore";
 import { ref, uploadString, getDownloadURL } from "firebase/storage";
-import { auth, db, storage } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,6 +27,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/hooks/use-auth";
+
 
 export default function SignupPage() {
   const [username, setUsername] = useState("");
@@ -34,6 +43,8 @@ export default function SignupPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const { signIn } = useAuth();
+
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -74,34 +85,56 @@ export default function SignupPage() {
     // --- End Validation ---
 
     setLoading(true);
-    const email = `${username}@synergyhub.app`;
 
     try {
-      // 1. Create user in Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // 1. Check if username already exists
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("username", "==", username.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        toast({ title: "Lỗi", description: "Tên người dùng này đã tồn tại.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      
+      // We need a document ID to name the avatar file. Let's create the doc first.
+      const newUserRef = doc(collection(db, "users"));
+      const userId = newUserRef.id;
 
       // 2. Upload avatar if it exists, otherwise use placeholder
       let avatarUrl = "https://placehold.co/128x128.png";
       if (avatarFile) {
         try {
-            const storageRef = ref(storage, `avatars/${user.uid}`);
+            const storageRef = ref(storage, `avatars/${userId}`);
             await uploadString(storageRef, avatarFile, 'data_url');
             avatarUrl = await getDownloadURL(storageRef);
         } catch (storageError) {
             console.error("Error uploading avatar: ", storageError);
             toast({ title: "Lỗi tải ảnh", description: "Không thể tải lên ảnh đại diện, sẽ sử dụng ảnh mặc định.", variant: "destructive" });
-            // Continue with default avatar
         }
       }
 
-      // 3. Create user profile in Firestore
-      await setDoc(doc(db, "users", user.uid), {
+      // 3. Create user profile object
+      const newUserProfile = {
+        username: username.trim(),
+        password: password, // Storing plain text password
         nickname: nickname,
         bio: bio,
         avatar: avatarUrl,
         role: 'user', // Default role
-      });
+      };
+      
+      // 4. Save the user profile in Firestore
+      await setDoc(newUserRef, newUserProfile);
+      
+      const userForSession = { ...newUserProfile, id: userId };
+      // Omit password from session data
+      // @ts-ignore
+      delete userForSession.password;
+
+      // 5. Sign in the new user
+      signIn(userForSession);
 
       toast({
         title: "Thành công",
@@ -111,16 +144,7 @@ export default function SignupPage() {
 
     } catch (error: any) {
       console.error("Error signing up: ", error);
-      if (error.code === 'auth/email-already-in-use') {
-        toast({ title: "Lỗi", description: "Tên người dùng này đã tồn tại.", variant: "destructive" });
-      } else if (error.code === 'auth/invalid-email') {
-        toast({ title: "Lỗi", description: "Tên người dùng không hợp lệ.", variant: "destructive" });
-      } else if (error.code === 'auth/weak-password') {
-        toast({ title: "Lỗi", description: "Mật khẩu quá yếu.", variant: "destructive" });
-      }
-      else {
-        toast({ title: "Lỗi", description: "Đã có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", variant: "destructive" });
-      }
+      toast({ title: "Lỗi", description: "Đã có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", variant: "destructive" });
     } finally {
       setLoading(false);
     }

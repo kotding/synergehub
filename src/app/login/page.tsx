@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -23,32 +24,69 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { signIn } = useAuth();
 
   const handleLogin = async () => {
-    if (!username.trim()) {
+    if (!username.trim() || !password) {
       toast({
         title: "Lỗi",
-        description: "Vui lòng nhập tên người dùng.",
+        description: "Vui lòng nhập tên người dùng và mật khẩu.",
         variant: "destructive",
       });
       return;
     }
-    // Firebase Auth uses email for authentication. We'll use the username as the email's local part.
-    // This is a common pattern for username-based auth with Firebase.
-    const email = `${username}@synergyhub.app`;
+    
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("username", "==", username.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        toast({
+          title: "Lỗi đăng nhập",
+          description: "Tên người dùng không tồn tại.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+
+      if (userData.password !== password) {
+        toast({
+          title: "Lỗi đăng nhập",
+          description: "Mật khẩu không đúng.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      const userProfile = {
+        id: userDoc.id,
+        username: userData.username,
+        nickname: userData.nickname,
+        bio: userData.bio,
+        avatar: userData.avatar,
+        role: userData.role,
+      };
+
+      signIn(userProfile);
+
       toast({
         title: "Thành công",
         description: "Đăng nhập thành công!",
       });
       router.push("/");
+
     } catch (error: any) {
       console.error("Error signing in: ", error);
       toast({
-        title: "Lỗi đăng nhập",
-        description: "Tên người dùng hoặc mật khẩu không đúng.",
+        title: "Lỗi hệ thống",
+        description: "Đã có lỗi xảy ra. Vui lòng thử lại.",
         variant: "destructive",
       });
     } finally {

@@ -6,12 +6,15 @@ import React, {
   useEffect,
   useContext,
   ReactNode,
+  useCallback,
 } from "react";
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
 
 interface UserProfile {
+  id: string; // Firestore document ID
+  username: string;
   nickname: string;
   bio: string;
   avatar: string;
@@ -19,52 +22,75 @@ interface UserProfile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: UserProfile | null;
   profile: UserProfile | null;
   loading: boolean;
   signOut: () => void;
+  signIn: (userProfile: UserProfile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
+    setLoading(true);
+    try {
+      const storedUser = localStorage.getItem("synergy-user");
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser) as UserProfile;
+        setUser(parsedUser);
+        
         // Listen for profile changes in real-time
-        const unsubProfile = onSnapshot(doc(db, "users", user.uid), (doc) => {
+        const unsubProfile = onSnapshot(doc(db, "users", parsedUser.id), (doc) => {
           if (doc.exists()) {
-            setProfile(doc.data() as UserProfile);
+            const userProfile = { id: doc.id, ...doc.data() } as UserProfile;
+            setProfile(userProfile);
+            // Also update the user in state and local storage in case of changes
+            setUser(userProfile); 
+            localStorage.setItem("synergy-user", JSON.stringify(userProfile));
           } else {
-            setProfile(null);
+            // The user was deleted from Firestore, log them out.
+            signOut();
           }
           setLoading(false);
         });
+
         return () => unsubProfile(); // Cleanup profile listener
       } else {
+        setUser(null);
         setProfile(null);
         setLoading(false);
       }
-    });
-
-    return () => unsubscribe(); // Cleanup auth listener
+    } catch (error) {
+      console.error("Failed to process stored user:", error);
+      // Clear potentially corrupted data
+      localStorage.removeItem("synergy-user");
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+    }
   }, []);
 
-  const signOut = async () => {
-    try {
-      await firebaseSignOut(auth);
-      // Auth state change will clear user and profile
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
-  };
+  const signIn = useCallback((userProfile: UserProfile) => {
+    localStorage.setItem("synergy-user", JSON.stringify(userProfile));
+    setUser(userProfile);
+    setProfile(userProfile);
+  }, []);
+  
+  const signOut = useCallback(() => {
+    localStorage.removeItem("synergy-user");
+    setUser(null);
+    setProfile(null);
+    // Redirect to login page after sign out
+    router.push('/login');
+  }, [router]);
 
-  const value = { user, profile, loading, signOut };
+  const value = { user, profile, loading, signOut, signIn };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
