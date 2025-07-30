@@ -49,17 +49,15 @@ export default function FlappyBirdPage() {
         avatarImage: HTMLImageElement | null;
         ghostImages: Record<string, HTMLImageElement>;
         pipeImages: Record<string, HTMLImageElement>;
-        sounds: Record<string, HTMLAudioElement | null>;
     }>({
         avatarImage: null,
         ghostImages: {},
         pipeImages: {},
-        sounds: { wing: null, hit: null, die: null }
     });
 
     const gameVars = useRef({
         bird: { x: 60, y: 150, width: 40, height: 40, velocity: 0 },
-        gravity: 0.20, // Reduced gravity
+        gravity: 0.20,
         lift: -4.5,
         pipes: [] as { x: number, y: number, passed: boolean }[],
         pipeWidth: 52,
@@ -94,16 +92,6 @@ export default function FlappyBirdPage() {
         }
     }, [profile]);
     
-    // Load assets
-    useEffect(() => {
-        const soundFiles = ['wing', 'hit', 'die'];
-        soundFiles.forEach(sound => {
-            const audio = new Audio(`/sounds/${sound}.mp3`);
-            audio.load();
-            gameAssets.current.sounds[sound] = audio;
-        });
-    }, []);
-
     // Load user avatar
     useEffect(() => {
         if (profile?.avatar) {
@@ -113,14 +101,6 @@ export default function FlappyBirdPage() {
             avatarImg.onload = () => { gameAssets.current.avatarImage = avatarImg; };
         }
     }, [profile?.avatar]);
-
-    const playSound = (soundName: 'wing' | 'hit' | 'die') => {
-        const sound = gameAssets.current.sounds[soundName];
-        if (sound) {
-            sound.currentTime = 0;
-            sound.play().catch(e => console.error(`Error playing sound: ${soundName}`, e));
-        }
-    }
 
     const getPipeImage = (pipeY: number, canvasHeight: number) => {
         const key = `${pipeY}`;
@@ -189,7 +169,7 @@ export default function FlappyBirdPage() {
             if(isGhost) {
                 context.globalAlpha = 0.4;
             }
-            if (avatarImg) {
+            if (avatarImg && avatarImg.complete) {
                 context.beginPath();
                 context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
                 context.closePath();
@@ -203,7 +183,9 @@ export default function FlappyBirdPage() {
                 context.stroke();
             } else {
                  context.fillStyle = isGhost ? 'rgba(255, 255, 10, 0.4)' : '#FFC107';
-                 context.fillRect(birdX, birdY, birdW, birdH);
+                 context.beginPath();
+                 context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW/2, 0, 2 * Math.PI);
+                 context.fill();
             }
              context.restore();
         }
@@ -269,7 +251,6 @@ export default function FlappyBirdPage() {
             const bird = gameVars.current.bird;
             // Ground and ceiling collision
             if (bird.y + bird.height > canvas.height || bird.y < 0) {
-                playSound('hit');
                 endGame();
                 return;
             }
@@ -281,7 +262,6 @@ export default function FlappyBirdPage() {
                     bird.x + bird.width > pipeX &&
                     (bird.y < pipe.y || bird.y + bird.height > pipe.y + gameVars.current.pipeGap)
                 ) {
-                    playSound('hit');
                     endGame();
                     return;
                 }
@@ -303,7 +283,6 @@ export default function FlappyBirdPage() {
 
     const jump = () => {
         if (!isGameOver && countdown === null) {
-            playSound('wing');
             gameVars.current.bird.velocity = gameVars.current.lift;
         }
     };
@@ -359,7 +338,6 @@ export default function FlappyBirdPage() {
 
     const endGame = () => {
         if (isGameOver) return;
-        playSound('die');
         setIsGameOver(true);
         saveDeathPosition();
         if (score > highScore) {
