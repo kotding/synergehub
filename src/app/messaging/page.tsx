@@ -104,24 +104,15 @@ export default function MessagingPage() {
     if (!user) return;
     setLoadingChats(true);
     const chatsRef = collection(db, 'chats');
-    // Removed orderBy to prevent index error. Sorting will be done on the client.
-    const q = query(chatsRef, where('participants', 'array-contains', user.id));
+    const q = query(chatsRef, where('participants', 'array-contains', user.id), orderBy('lastMessageTimestamp', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
-      
-      // Sort chats by last message timestamp on the client
-      userChats.sort((a, b) => {
-        const timeA = a.lastMessageTimestamp?.toMillis() || 0;
-        const timeB = b.lastMessageTimestamp?.toMillis() || 0;
-        return timeB - timeA;
-      });
-
       setChats(userChats);
       setLoadingChats(false);
     }, (error) => {
       console.error("Error fetching chats: ", error);
-      toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải danh sách cuộc trò chuyện." });
+      toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải danh sách cuộc trò chuyện. Có thể cần tạo chỉ mục trong Firestore." });
       setLoadingChats(false);
     });
 
@@ -730,6 +721,3 @@ export default function MessagingPage() {
     </>
   );
 }
-
-
-    
