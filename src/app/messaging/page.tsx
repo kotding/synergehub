@@ -191,7 +191,6 @@ export default function MessagingPage() {
         toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi ảnh." });
     } finally {
         setIsUploading(false);
-        // Reset file input
         if(fileInputRef.current) {
             fileInputRef.current.value = "";
         }
@@ -343,5 +342,3 @@ export default function MessagingPage() {
     </div>
   );
 }
-
-    
