@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, query, getDocs, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 import { db, storage } from '@/lib/firebase';
@@ -79,6 +79,16 @@ export default function MessagingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Memoized sorted chats
+  const sortedChats = useMemo(() => {
+    return [...chats].sort((a, b) => {
+      const timeA = a.lastMessageTimestamp?.toMillis() || 0;
+      const timeB = b.lastMessageTimestamp?.toMillis() || 0;
+      return timeB - timeA;
+    });
+  }, [chats]);
 
   // Fetch all users once
   useEffect(() => {
@@ -104,7 +114,7 @@ export default function MessagingPage() {
     if (!user) return;
     setLoadingChats(true);
     const chatsRef = collection(db, 'chats');
-    const q = query(chatsRef, where('participants', 'array-contains', user.id), orderBy('lastMessageTimestamp', 'desc'));
+    const q = query(chatsRef, where('participants', 'array-contains', user.id));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
@@ -143,34 +153,41 @@ export default function MessagingPage() {
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const msgs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
+        const newMsgs: Message[] = [];
+        const senderProfiles: Record<string, User> = {};
 
-      if (selectedChat.isGroup) {
-          const senderIds = [...new Set(msgs.map(m => m.senderId))];
-          const senderProfiles: Record<string, User> = {};
-          
-          for(const id of senderIds) {
-              if(!senderProfiles[id]) {
-                  const userDoc = await getDoc(doc(db, "users", id));
-                  if(userDoc.exists()) {
-                      senderProfiles[id] = { id, ...userDoc.data() } as User;
-                  }
-              }
-          }
+        // Efficiently fetch sender profiles
+        const senderIds = [...new Set(querySnapshot.docs.map(doc => doc.data().senderId))];
+        const userDocs = await Promise.all(senderIds.map(id => getDoc(doc(db, "users", id))));
+        userDocs.forEach(userDoc => {
+            if (userDoc.exists()) {
+                senderProfiles[userDoc.id] = { id: userDoc.id, ...userDoc.data() } as User;
+            }
+        });
 
-          const populatedMsgs = msgs.map(msg => ({
-              ...msg,
-              senderInfo: senderProfiles[msg.senderId] ? { 
-                  nickname: senderProfiles[msg.senderId].nickname, 
-                  avatar: senderProfiles[msg.senderId].avatar,
-              } : undefined
-          }))
-           setMessages(populatedMsgs);
-      } else {
-        setMessages(msgs);
-      }
-      
-      setLoadingMessages(false);
+        querySnapshot.forEach(doc => {
+            const data = doc.data() as Omit<Message, 'id'>;
+            const msg: Message = { id: doc.id, ...data };
+            
+            if (selectedChat.isGroup && senderProfiles[msg.senderId]) {
+                 msg.senderInfo = { 
+                    nickname: senderProfiles[msg.senderId].nickname, 
+                    avatar: senderProfiles[msg.senderId].avatar,
+                };
+            }
+            newMsgs.push(msg);
+        });
+
+        // Play sound for new messages from others
+        if (newMsgs.length > messages.length && messages.length > 0) {
+            const lastMessage = newMsgs[newMsgs.length - 1];
+            if (lastMessage.senderId !== user?.id) {
+                audioRef.current?.play().catch(e => console.log("Audio play failed:", e));
+            }
+        }
+        
+        setMessages(newMsgs);
+        setLoadingMessages(false);
     }, (error) => {
       console.error("Error fetching messages: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải tin nhắn." });
@@ -178,14 +195,14 @@ export default function MessagingPage() {
     });
 
     return () => unsubscribe();
-  }, [selectedChat, toast]);
+  }, [selectedChat, toast, user, messages.length]);
 
   // Handle selecting a user to start a 1-on-1 chat
   const handleUserSelect = async (selected: User) => {
     if (!user) return;
     
     // Check if a 1-on-1 chat already exists
-    const existingChat = chats.find(c => !c.isGroup && c.participants.includes(selected.id));
+    const existingChat = chats.find(c => !c.isGroup && c.participants.length === 2 && c.participants.includes(selected.id));
     
     if (existingChat) {
         setSelectedChat(existingChat);
@@ -412,8 +429,14 @@ export default function MessagingPage() {
       );
   }
 
+  const getUserById = (userId: string) => users.find(u => u.id === userId);
+
+
   return (
     <>
+      {/* Preload audio */}
+      <audio ref={audioRef} src="/notification.mp3" preload="auto" className="hidden" />
+
       <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Sidebar - Chat List */}
         <aside className={`flex flex-col w-full md:w-1/3 lg:w-1/4 bg-card border-r border-border transition-transform duration-300 ease-in-out ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
@@ -440,44 +463,46 @@ export default function MessagingPage() {
               </div>
             ) : (
               <nav className="p-2 space-y-1">
-                <h3 className="px-2 py-1 text-xs font-semibold text-muted-foreground">NHÓM</h3>
-                {chats.filter(c => c.isGroup).map(chat => (
-                  <button
-                    key={chat.id}
-                    onClick={() => setSelectedChat(chat)}
-                    className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedChat?.id === chat.id ? 'bg-accent' : ''}`}
-                  >
-                    <Avatar className="w-10 h-10 mr-3">
-                      <AvatarImage src={chat.groupAvatar} />
-                      <AvatarFallback>{getAvatarFallback(chat.groupName)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 truncate">
-                        <span className="font-medium">{chat.groupName}</span>
-                        <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
-                    </div>
-                  </button>
-                ))}
-                
-                <h3 className="px-2 pt-4 pb-1 text-xs font-semibold text-muted-foreground">TIN NHẮN TRỰC TIẾP</h3>
-                {users.map(u => {
-                    const chat = chats.find(c => !c.isGroup && c.participants.includes(u.id));
-                    return(
-                      <button
-                        key={u.id}
-                        onClick={() => handleUserSelect(u)}
-                        className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedChat?.id === chat?.id ? 'bg-accent' : ''}`}
-                      >
-                        <Avatar className="w-10 h-10 mr-3">
-                          <AvatarImage src={u.avatar} />
-                          <AvatarFallback>{getAvatarFallback(u.nickname)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 truncate">
-                            <span className="font-medium">{u.nickname}</span>
-                             {chat?.lastMessage && <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>}
-                        </div>
-                      </button>
+                 {sortedChats.map(chat => {
+                    if (chat.isGroup) {
+                        return (
+                             <button
+                                key={chat.id}
+                                onClick={() => setSelectedChat(chat)}
+                                className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedChat?.id === chat.id ? 'bg-accent' : ''}`}
+                              >
+                                <Avatar className="w-10 h-10 mr-3">
+                                  <AvatarImage src={chat.groupAvatar} />
+                                  <AvatarFallback>{getAvatarFallback(chat.groupName)}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 truncate">
+                                    <span className="font-medium">{chat.groupName}</span>
+                                    <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
+                                </div>
+                              </button>
+                        )
+                    }
+                    
+                    const partner = getChatPartner(chat);
+                    if (!partner) return null;
+
+                    return (
+                         <button
+                            key={chat.id}
+                            onClick={() => setSelectedChat(chat)}
+                            className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedChat?.id === chat.id ? 'bg-accent' : ''}`}
+                          >
+                            <Avatar className="w-10 h-10 mr-3">
+                              <AvatarImage src={partner.avatar} />
+                              <AvatarFallback>{getAvatarFallback(partner.nickname)}</AvatarFallback>
+                            </Avatar>
+                             <div className="flex-1 truncate">
+                                <span className="font-medium">{partner.nickname}</span>
+                                 {chat.lastMessage && <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>}
+                            </div>
+                          </button>
                     )
-                })}
+                 })}
               </nav>
             )}
           </ScrollArea>
@@ -498,22 +523,35 @@ export default function MessagingPage() {
                     </div>
                   ) : (
                     messages.map((msg, index) => {
+                      const sender = getUserById(msg.senderId);
+                      const senderIsAdmin = sender?.role === 'admin';
                       const showSender = selectedChat.isGroup && (index === 0 || messages[index-1].senderId !== msg.senderId);
+
                       return (
                       <div key={msg.id} className={`flex flex-col gap-1`}>
                         {showSender && msg.senderInfo && (
                             <div className={`flex items-center gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start ml-10'}`}>
-                                <span className={`text-xs font-bold ${msg.senderId === profile?.id && profile?.role === 'admin' ? 'text-primary' : 'text-muted-foreground'}`}>
+                                <button 
+                                  onClick={() => sender && setViewingProfile(sender)}
+                                  disabled={!sender}
+                                  className={`text-xs font-bold hover:underline ${senderIsAdmin ? 'text-primary' : 'text-muted-foreground'}`}
+                                >
                                     {msg.senderInfo.nickname}
-                                </span>
+                                </button>
                             </div>
                         )}
                         <div className={`flex items-end gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
                           {msg.senderId !== user?.id && (
-                            <Avatar className={`w-8 h-8 transition-opacity duration-300 ${showSender ? 'opacity-100' : 'opacity-0'}`}>
-                              {msg.senderInfo && <AvatarImage src={msg.senderInfo.avatar} />}
-                              <AvatarFallback>{getAvatarFallback(msg.senderInfo?.nickname)}</AvatarFallback>
-                            </Avatar>
+                            <button 
+                                onClick={() => sender && setViewingProfile(sender)}
+                                disabled={!sender}
+                                className={`transition-opacity duration-300 ${showSender ? 'opacity-100' : 'opacity-0'}`}
+                            >
+                                <Avatar className={`w-8 h-8 `}>
+                                {msg.senderInfo && <AvatarImage src={msg.senderInfo.avatar} />}
+                                <AvatarFallback>{getAvatarFallback(msg.senderInfo?.nickname)}</AvatarFallback>
+                                </Avatar>
+                            </button>
                           )}
                            <div className={`max-w-xs md:max-w-md lg:max-w-lg break-words ${msg.imageUrl ? 'bg-transparent' : (msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-card border')} rounded-lg ${msg.text ? 'px-3 py-2' : 'p-0'}`}>
                             {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
@@ -589,9 +627,9 @@ export default function MessagingPage() {
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-                    disabled={loadingMessages || isUploading}
+                    disabled={isUploading}
                   />
-                  <Button onClick={handleSendMessage} disabled={!newMessage.trim() || loadingMessages || isUploading || isSending}>
+                  <Button onClick={handleSendMessage} disabled={!newMessage.trim() || isUploading || isSending}>
                     {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send />}
                   </Button>
                 </div>
@@ -721,3 +759,5 @@ export default function MessagingPage() {
     </>
   );
 }
+
+  
