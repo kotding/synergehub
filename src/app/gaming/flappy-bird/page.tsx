@@ -17,20 +17,16 @@ const pipeSvg = (height: number, canvasHeight: number, pipeGap: number) => `
       </linearGradient>
     </defs>
     
-    // Top Pipe Body
     <rect x="2" y="0" width="48" height="${height - 25}" fill="url(#pipeGradient)" />
     <rect x="2" y="0" width="48" height="${height - 25}" fill="black" fill-opacity="0.1" />
     
-    // Top Pipe Head
     <rect x="0" y="${height - 25}" width="52" height="25" fill="url(#pipeGradient)" rx="3" ry="3" />
     <rect x="0" y="${height - 25}" width="52" height="25" fill="black" fill-opacity="0.2" rx="3" ry="3" />
     <rect x="4" y="${height - 23}" width="44" height="18" fill="url(#pipeGradient)" stroke="#456800" stroke-width="2" rx="2" ry="2"/>
 
-    // Bottom Pipe Body
     <rect x="2" y="${height + pipeGap + 25}" width="48" height="${canvasHeight - height - pipeGap - 25}" fill="url(#pipeGradient)" />
      <rect x="2" y="${height + pipeGap + 25}" width="48" height="${canvasHeight - height - pipeGap - 25}" fill="black" fill-opacity="0.1" />
    
-    // Bottom Pipe Head
     <rect x="0" y="${height + pipeGap}" width="52" height="25" fill="url(#pipeGradient)" rx="3" ry="3" />
     <rect x="0" y="${height + pipeGap}" width="52" height="25" fill="black" fill-opacity="0.2" rx="3" ry="3" />
     <rect x="4" y="${height + pipeGap + 4}" width="44" height="18" fill="url(#pipeGradient)" stroke="#456800" stroke-width="2" rx="2" ry="2"/>
@@ -45,17 +41,20 @@ export default function FlappyBirdPage() {
     const [gameStarted, setGameStarted] = useState(false);
     const [countdown, setCountdown] = useState<number | null>(null);
 
-    // Game assets using refs
-    const gameAssets = useRef<{ birdImage: HTMLImageElement | null, pipeImages: Record<string, HTMLImageElement> }>({
+    const gameAssets = useRef<{ 
+      birdImage: HTMLImageElement | null;
+      pipeImages: Record<string, HTMLImageElement>;
+      sounds: Record<string, HTMLAudioElement | null>;
+    }>({
       birdImage: null,
       pipeImages: {},
+      sounds: { wing: null, hit: null, die: null }
     });
 
-    // Game variables using refs to persist across renders
     const gameVars = useRef({
         bird: { x: 50, y: 150, width: 34, height: 24, velocity: 0 },
-        gravity: 0.3,
-        lift: -6,
+        gravity: 0.25,
+        lift: -5,
         pipes: [] as { x: number, y: number, passed: boolean }[],
         pipeWidth: 52,
         pipeGap: 150,
@@ -68,10 +67,25 @@ export default function FlappyBirdPage() {
     useEffect(() => {
         const birdImg = new Image();
         birdImg.src = "data:image/svg+xml;base64," + btoa(birdSvg);
-        birdImg.onload = () => {
-            gameAssets.current.birdImage = birdImg;
-        }
+        birdImg.onload = () => { gameAssets.current.birdImage = birdImg; };
+
+        // Preload sounds
+        const soundFiles = ['wing', 'hit', 'die'];
+        soundFiles.forEach(sound => {
+            const audio = new Audio(`/sounds/${sound}.mp3`);
+            audio.load();
+            gameAssets.current.sounds[sound] = audio;
+        });
+
     }, []);
+
+    const playSound = (soundName: 'wing' | 'hit' | 'die') => {
+        const sound = gameAssets.current.sounds[soundName];
+        if (sound) {
+            sound.currentTime = 0;
+            sound.play().catch(e => console.error(`Error playing sound: ${soundName}`, e));
+        }
+    }
 
     const getPipeImage = (pipeY: number, canvasHeight: number) => {
         const key = `${pipeY}`;
@@ -92,27 +106,40 @@ export default function FlappyBirdPage() {
     }, []);
 
     useEffect(() => {
-        if (isGameOver || countdown !== null) return;
-
         const canvas = canvasRef.current;
         if (!canvas) return;
-
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         
+        const drawBackground = () => {
+             ctx.fillStyle = '#70c5ce';
+             ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        drawBackground();
+
+        if (isGameOver || countdown !== null) {
+            if (countdown !== null) {
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 72px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 4;
+                ctx.strokeText(`${countdown}`, canvas.width / 2, canvas.height / 2);
+                ctx.fillText(`${countdown}`, canvas.width / 2, canvas.height / 2);
+            }
+            return;
+        };
+
         let animationFrameId: number;
 
         const draw = () => {
-            // Background
-            ctx.fillStyle = '#70c5ce'; // Sky blue
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
 
             // Bird
             if (gameAssets.current.birdImage) {
                 ctx.drawImage(gameAssets.current.birdImage, gameVars.current.bird.x, gameVars.current.bird.y, gameVars.current.bird.width, gameVars.current.bird.height);
-            } else {
-                 ctx.fillStyle = '#f2d45c'; // Fallback yellow
-                 ctx.fillRect(gameVars.current.bird.x, gameVars.current.bird.y, gameVars.current.bird.width, gameVars.current.bird.height);
             }
 
             // Pipes
@@ -153,6 +180,7 @@ export default function FlappyBirdPage() {
             const bird = gameVars.current.bird;
             // Ground and ceiling collision
             if (bird.y + bird.height > canvas.height || bird.y < 0) {
+                playSound('hit');
                 endGame();
                 return;
             }
@@ -163,6 +191,7 @@ export default function FlappyBirdPage() {
                     bird.x + bird.width > pipe.x &&
                     (bird.y < pipe.y || bird.y + bird.height > pipe.y + gameVars.current.pipeGap)
                 ) {
+                    playSound('hit');
                     endGame();
                     return;
                 }
@@ -182,37 +211,16 @@ export default function FlappyBirdPage() {
         };
     }, [isGameOver, countdown]);
 
-     // Draw only background and countdown text when counting down
-     useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas || !ctx) return;
-        var ctx = canvas.getContext('2d');
-
-        // Clear canvas
-        ctx.fillStyle = '#70c5ce';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        if (countdown !== null && countdown > 0) {
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 72px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 4;
-            ctx.strokeText(`${countdown}`, canvas.width / 2, canvas.height / 2);
-            ctx.fillText(`${countdown}`, canvas.width / 2, canvas.height / 2);
-        }
-    }, [countdown]);
-
     const jump = () => {
         if (!isGameOver && countdown === null) {
+            playSound('wing');
             gameVars.current.bird.velocity = gameVars.current.lift;
         }
     };
     
     const triggerCountdown = () => {
         setGameStarted(true);
-        setIsGameOver(true); // Keep game paused during countdown
+        setIsGameOver(true);
         setCountdown(3);
         
         const timer = setInterval(() => {
@@ -234,11 +242,13 @@ export default function FlappyBirdPage() {
         gameVars.current.bird = { x: 50, y: 150, width: 34, height: 24, velocity: 0 };
         gameVars.current.pipes = [];
         gameVars.current.frameCount = 0;
-        jump(); // Initial jump
+        jump();
     };
 
 
     const endGame = () => {
+        if (isGameOver) return; // Prevent multiple calls
+        playSound('die');
         setIsGameOver(true);
         if (score > highScore) {
             setHighScore(score);
@@ -255,20 +265,13 @@ export default function FlappyBirdPage() {
 
     const handleClick = () => {
         if (isGameOver) {
-            if (gameStarted) { // If game over screen is shown
+            if (gameStarted || countdown === null) {
                 triggerCountdown();
             }
         } else {
             jump();
         }
     };
-    
-    // Combined start button handler
-    const handleStartButtonClick = () => {
-        if (isGameOver) {
-             triggerCountdown();
-        }
-    }
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyPress);
@@ -298,28 +301,21 @@ export default function FlappyBirdPage() {
                     onClick={handleClick}
                     className="w-full h-full block"
                 />
-                 {countdown !== null && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                         <span className="text-8xl font-extrabold text-white" style={{WebkitTextStroke: '2px black'}}>
-                            {countdown}
-                         </span>
-                    </div>
-                )}
                 {(isGameOver && gameStarted && countdown === null) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white p-4 text-center">
                         <h2 className="text-4xl font-extrabold mb-2">Game Over</h2>
                         <p className="text-xl mb-4">Điểm: {score}</p>
-                        <Button onClick={handleStartButtonClick} size="lg">
+                        <Button onClick={triggerCountdown} size="lg">
                             <RefreshCw className="mr-2" />
                             Chơi lại
                         </Button>
                     </div>
                 )}
-                 {(isGameOver && !gameStarted) && (
+                 {(!gameStarted && isGameOver) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white p-4 text-center">
                         <h2 className="text-4xl font-extrabold mb-2">Flappy Bird</h2>
                         <p className="text-lg mb-4">Nhấn để bắt đầu</p>
-                        <Button onClick={handleStartButtonClick} size="lg">
+                        <Button onClick={triggerCountdown} size="lg">
                             <Play className="mr-2" />
                             Bắt đầu
                         </Button>
