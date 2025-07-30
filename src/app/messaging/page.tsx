@@ -116,10 +116,14 @@ export default function MessagingPage() {
     const chatsRef = collection(db, 'chats');
     const q = query(chatsRef, where('participants', 'array-contains', user.id));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const userChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
-      setChats(userChats);
-      setLoadingChats(false);
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
+        // Only update from server-confirmed data to prevent "jumping"
+        if (snapshot.metadata.hasPendingWrites) {
+            return;
+        }
+        const userChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
+        setChats(userChats);
+        setLoadingChats(false);
     }, (error) => {
       console.error("Error fetching chats: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải danh sách cuộc trò chuyện. Có thể cần tạo chỉ mục trong Firestore." });
@@ -232,7 +236,7 @@ export default function MessagingPage() {
     const textToSend = newMessage;
     setNewMessage('');
   
-    // Optimistically update the chat list
+    // Optimistically update the chat list to prevent jumping
     setChats(prevChats => 
       prevChats.map(c => 
         c.id === selectedChat.id 
@@ -243,13 +247,15 @@ export default function MessagingPage() {
   
     try {
       const messagesRef = collection(db, 'chats', selectedChat.id, 'messages');
+      const chatDocRef = doc(db, 'chats', selectedChat.id);
+  
       await addDoc(messagesRef, {
         senderId: user.id,
         text: textToSend,
         timestamp: serverTimestamp(),
       });
-      // Update last message on chat document in Firestore
-      await setDoc(doc(db, 'chats', selectedChat.id), {
+  
+      await setDoc(chatDocRef, {
         lastMessage: textToSend,
         lastMessageTimestamp: serverTimestamp()
       }, { merge: true });
@@ -258,14 +264,6 @@ export default function MessagingPage() {
       console.error("Error sending message: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi tin nhắn." });
       setNewMessage(textToSend); // Restore message on error
-       // Revert optimistic update on error
-       setChats(prevChats => 
-        prevChats.map(c => 
-          c.id === selectedChat.id 
-            ? { ...c, lastMessage: selectedChat.lastMessage, lastMessageTimestamp: selectedChat.lastMessageTimestamp }
-            : c
-        )
-      );
     } finally {
       setIsSending(false);
     }
@@ -282,7 +280,7 @@ export default function MessagingPage() {
   
     setIsUploading(true);
   
-    // Optimistically update the chat list for image upload
+    // Optimistically update the chat list to prevent jumping
     const lastMessagePreview = "Đã gửi một ảnh";
     setChats(prevChats => 
         prevChats.map(c => 
@@ -294,6 +292,8 @@ export default function MessagingPage() {
   
     try {
         const storageRef = ref(storage, `chat_images/${selectedChat.id}/${Date.now()}_${file.name}`);
+        const chatDocRef = doc(db, 'chats', selectedChat.id);
+
         await uploadBytes(storageRef, file);
         const imageUrl = await getDownloadURL(storageRef);
   
@@ -304,22 +304,14 @@ export default function MessagingPage() {
             timestamp: serverTimestamp(),
         });
         
-        await setDoc(doc(db, 'chats', selectedChat.id), {
+        await setDoc(chatDocRef, {
             lastMessage: lastMessagePreview,
             lastMessageTimestamp: serverTimestamp()
         }, { merge: true });
   
     } catch (error) {
         console.error("Error uploading image: ", error);
-        toast({ variant: "destructive", title: "Lỗi gửi ảnh", description: (error as Error).message });
-        // Revert optimistic update on error
-        setChats(prevChats => 
-            prevChats.map(c => 
-              c.id === selectedChat.id 
-                ? { ...c, lastMessage: selectedChat.lastMessage, lastMessageTimestamp: selectedChat.lastMessageTimestamp }
-                : c
-            )
-          );
+        toast({ variant: "destructive", title: "Lỗi gửi ảnh", description: "Không thể tải ảnh lên." });
     } finally {
         setIsUploading(false);
         if(fileInputRef.current) {
