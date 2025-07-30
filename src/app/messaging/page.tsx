@@ -2,20 +2,23 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, getDocs, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, query, getDocs, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 import { db, storage } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, ArrowLeft, Users, MessageCircle, ImagePlus, Loader2, Download, Smile } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Send, ArrowLeft, Users, MessageCircle, ImagePlus, Loader2, Download, Smile, PlusCircle, CheckCircle, UserPlus, Search } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 
 interface User {
@@ -24,6 +27,7 @@ interface User {
   avatar: string;
   username: string;
   bio: string;
+  role: 'user' | 'admin';
 }
 
 interface Message {
@@ -32,53 +36,89 @@ interface Message {
   text?: string;
   imageUrl?: string;
   timestamp: any;
+  senderInfo?: {
+    nickname: string;
+    avatar: string;
+  }
 }
 
 interface Chat {
   id: string;
   participants: string[];
+  isGroup?: boolean;
+  groupName?: string;
+  groupAvatar?: string;
+  admins?: string[];
+  lastMessage?: string;
+  lastMessageTimestamp?: any;
 }
 
 export default function MessagingPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
+  
+  const [chats, setChats] = useState<Chat[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [chatId, setChatId] = useState<string | null>(null);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  // Dialog states
   const [viewingImage, setViewingImage] = useState<string | null>(null);
-  const [isViewingProfile, setIsViewingProfile] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState<User | null>(null);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [newGroup, setNewGroup] = useState({ name: '', avatarFile: null as string | null, avatarPreview: "https://placehold.co/128x128.png", members: new Set<string>() });
+
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-
-  // Fetch all users except the current one
+  // Fetch all users once
   useEffect(() => {
     if (!user) return;
     const fetchUsers = async () => {
-      setLoadingUsers(true);
       try {
         const usersRef = collection(db, 'users');
         const querySnapshot = await getDocs(usersRef);
         const allUsers = querySnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as User))
-          .filter(u => u.id !== user.id);
+          .filter(u => u.id !== user.id); // Exclude self
         setUsers(allUsers);
       } catch (error) {
         console.error("Error fetching users: ", error);
         toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải danh sách người dùng." });
-      } finally {
-        setLoadingUsers(false);
       }
     };
     fetchUsers();
   }, [user, toast]);
+
+  // Fetch chats the user is a part of
+  useEffect(() => {
+    if (!user) return;
+    setLoadingChats(true);
+    const chatsRef = collection(db, 'chats');
+    const q = query(chatsRef, where('participants', 'array-contains', user.id), orderBy('lastMessageTimestamp', 'desc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const userChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
+      setChats(userChats);
+      setLoadingChats(false);
+    }, (error) => {
+      console.error("Error fetching chats: ", error);
+      toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải danh sách cuộc trò chuyện." });
+      setLoadingChats(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, toast]);
+
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -89,62 +129,47 @@ export default function MessagingPage() {
         }
     }
   }, [messages]);
-
-
-  // Handle selecting a user and finding/creating a chat
-  const handleUserSelect = async (selected: User) => {
-    if (!user) return;
-    setSelectedUser(selected);
-    setLoadingMessages(true);
-    setMessages([]);
-    setChatId(null);
-    
-    try {
-      const chatsRef = collection(db, 'chats');
-      // Query for chats where user.id is a participant
-      const q = query(chatsRef, where('participants', 'array-contains', user.id));
-      const querySnapshot = await getDocs(q);
-      
-      let existingChat: (Chat & { id: string }) | null = null;
-      // Find the specific chat that also includes the selected user
-      querySnapshot.forEach(doc => {
-        const chat = doc.data() as Chat;
-        if (chat.participants.includes(selected.id)) {
-          existingChat = { id: doc.id, ...chat };
-        }
-      });
-
-      let currentChatId;
-      if (existingChat) {
-        currentChatId = existingChat.id;
-      } else {
-        const newChatRef = await addDoc(chatsRef, {
-          participants: [user.id, selected.id],
-          createdAt: serverTimestamp(),
-        });
-        currentChatId = newChatRef.id;
-      }
-      setChatId(currentChatId);
-
-    } catch (error) {
-      console.error("Error finding or creating chat: ", error);
-      toast({ variant: "destructive", title: "Lỗi", description: "Không thể bắt đầu cuộc trò chuyện." });
-    } 
-  };
   
-   // Listen for messages in the selected chat
+  // Listen for messages in the selected chat
   useEffect(() => {
-    if (!chatId) {
+    if (!selectedChat?.id) {
+        setMessages([]);
         setLoadingMessages(false);
         return;
     };
 
-    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    setLoadingMessages(true);
+    const messagesRef = collection(db, 'chats', selectedChat.id, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
       const msgs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      setMessages(msgs);
+
+      if (selectedChat.isGroup) {
+          const senderIds = [...new Set(msgs.map(m => m.senderId))];
+          const senderProfiles: Record<string, User> = {};
+          
+          for(const id of senderIds) {
+              if(!senderProfiles[id]) {
+                  const userDoc = await getDoc(doc(db, "users", id));
+                  if(userDoc.exists()) {
+                      senderProfiles[id] = { id, ...userDoc.data() } as User;
+                  }
+              }
+          }
+
+          const populatedMsgs = msgs.map(msg => ({
+              ...msg,
+              senderInfo: senderProfiles[msg.senderId] ? { 
+                  nickname: senderProfiles[msg.senderId].nickname, 
+                  avatar: senderProfiles[msg.senderId].avatar,
+              } : undefined
+          }))
+           setMessages(populatedMsgs);
+      } else {
+        setMessages(msgs);
+      }
+      
       setLoadingMessages(false);
     }, (error) => {
       console.error("Error fetching messages: ", error);
@@ -153,22 +178,56 @@ export default function MessagingPage() {
     });
 
     return () => unsubscribe();
-  }, [chatId, toast]);
+  }, [selectedChat, toast]);
+
+  // Handle selecting a user to start a 1-on-1 chat
+  const handleUserSelect = async (selected: User) => {
+    if (!user) return;
+    
+    // Check if a 1-on-1 chat already exists
+    const existingChat = chats.find(c => !c.isGroup && c.participants.includes(selected.id));
+    
+    if (existingChat) {
+        setSelectedChat(existingChat);
+    } else {
+        // Create a new 1-on-1 chat
+        try {
+            const newChatRef = doc(collection(db, 'chats'));
+            const newChat: Chat = {
+                id: newChatRef.id,
+                participants: [user.id, selected.id],
+                isGroup: false,
+                lastMessageTimestamp: serverTimestamp()
+            };
+            await setDoc(newChatRef, newChat);
+            setSelectedChat(newChat);
+        } catch (error) {
+            console.error("Error creating chat: ", error);
+            toast({ variant: "destructive", title: "Lỗi", description: "Không thể bắt đầu cuộc trò chuyện." });
+        }
+    }
+  };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !chatId || !user || isSending) return;
+    if (!newMessage.trim() || !selectedChat?.id || !user || isSending) return;
 
     setIsSending(true);
     const textToSend = newMessage;
     setNewMessage('');
     
     try {
-      const messagesRef = collection(db, 'chats', chatId, 'messages');
+      const messagesRef = collection(db, 'chats', selectedChat.id, 'messages');
       await addDoc(messagesRef, {
         senderId: user.id,
         text: textToSend,
         timestamp: serverTimestamp(),
       });
+      // Update last message on chat
+      await setDoc(doc(db, 'chats', selectedChat.id), {
+        lastMessage: textToSend,
+        lastMessageTimestamp: serverTimestamp()
+      }, { merge: true });
+
     } catch (error) {
       console.error("Error sending message: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi tin nhắn." });
@@ -180,7 +239,7 @@ export default function MessagingPage() {
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !chatId || !user) return;
+    if (!file || !selectedChat?.id || !user) return;
 
     if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ variant: "destructive", title: "Lỗi", description: "Kích thước ảnh không được vượt quá 5MB." });
@@ -189,16 +248,21 @@ export default function MessagingPage() {
 
     setIsUploading(true);
     try {
-        const storageRef = ref(storage, `chat_images/${chatId}/${Date.now()}_${file.name}`);
+        const storageRef = ref(storage, `chat_images/${selectedChat.id}/${Date.now()}_${file.name}`);
         await uploadBytes(storageRef, file);
         const imageUrl = await getDownloadURL(storageRef);
 
-        const messagesRef = collection(db, 'chats', chatId, 'messages');
+        const messagesRef = collection(db, 'chats', selectedChat.id, 'messages');
         await addDoc(messagesRef, {
             senderId: user.id,
             imageUrl: imageUrl,
             timestamp: serverTimestamp(),
         });
+        
+        await setDoc(doc(db, 'chats', selectedChat.id), {
+            lastMessage: "Đã gửi một ảnh",
+            lastMessageTimestamp: serverTimestamp()
+        }, { merge: true });
 
     } catch (error) {
         console.error("Error uploading image: ", error);
@@ -210,18 +274,78 @@ export default function MessagingPage() {
         }
     }
   };
+  
+  const handleCreateGroup = async () => {
+      if(!profile || profile.role !== 'admin' || !newGroup.name.trim() || newGroup.members.size === 0) {
+          toast({ variant: "destructive", title: "Lỗi", description: "Tên nhóm và ít nhất một thành viên là bắt buộc." });
+          return;
+      }
+      setIsSending(true);
+      try {
+          const groupChatRef = doc(collection(db, "chats"));
+          let groupAvatarUrl = "https://placehold.co/128x128.png";
+          
+          if(newGroup.avatarFile) {
+              const storageRef = ref(storage, `group_avatars/${groupChatRef.id}`);
+              await uploadString(storageRef, newGroup.avatarFile, 'data_url');
+              groupAvatarUrl = await getDownloadURL(storageRef);
+          }
+          
+          const newChatData: Chat = {
+              id: groupChatRef.id,
+              isGroup: true,
+              groupName: newGroup.name,
+              groupAvatar: groupAvatarUrl,
+              admins: [profile.id],
+              participants: [profile.id, ...Array.from(newGroup.members)],
+              lastMessage: `Nhóm được tạo bởi ${profile.nickname}`,
+              lastMessageTimestamp: serverTimestamp()
+          };
+          
+          await setDoc(groupChatRef, newChatData);
+          
+          toast({ title: "Thành công", description: `Nhóm "${newGroup.name}" đã được tạo.` });
+          setIsCreatingGroup(false);
+          setNewGroup({ name: '', avatarFile: null, avatarPreview: "https://placehold.co/128x128.png", members: new Set() });
+
+      } catch (error) {
+          console.error("Error creating group:", error);
+          toast({ variant: "destructive", title: "Lỗi", description: "Không thể tạo nhóm." });
+      } finally {
+          setIsSending(false);
+      }
+  }
+
+  const handleGroupAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setNewGroup(prev => ({...prev, avatarPreview: result, avatarFile: result}));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleMemberToggle = (userId: string) => {
+      setNewGroup(prev => {
+          const newMembers = new Set(prev.members);
+          if (newMembers.has(userId)) {
+              newMembers.delete(userId);
+          } else {
+              newMembers.add(userId);
+          }
+          return { ...prev, members: newMembers };
+      });
+  }
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
     setNewMessage(prevMessage => prevMessage + emojiData.emoji);
   };
-
-  const getAvatarFallback = (name: string) => {
-    return name ? name.charAt(0).toUpperCase() : '?';
-  };
   
   const handleDownloadImage = () => {
     if (!viewingImage) return;
-    // Using fetch to bypass browser CORS issues with direct download
     fetch(viewingImage)
       .then(response => response.blob())
       .then(blob => {
@@ -229,7 +353,6 @@ export default function MessagingPage() {
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = url;
-        // Give the file a name
         a.download = `synergy-image-${Date.now()}.png`;
         document.body.appendChild(a);
         a.click();
@@ -242,94 +365,174 @@ export default function MessagingPage() {
       });
   };
 
+  const getChatPartner = (chat: Chat): User | null => {
+      if (!user || chat.isGroup) return null;
+      const partnerId = chat.participants.find(p => p !== user.id);
+      return users.find(u => u.id === partnerId) || null;
+  }
+  
+  const getAvatarFallback = (name?: string) => {
+    return name ? name.charAt(0).toUpperCase() : '?';
+  };
+  
+  const renderChatHeader = () => {
+      if (!selectedChat) return null;
+      let avatarUrl: string | undefined;
+      let name: string | undefined;
+      let partner: User | null = null;
+      
+      if(selectedChat.isGroup) {
+          avatarUrl = selectedChat.groupAvatar;
+          name = selectedChat.groupName;
+      } else {
+          partner = getChatPartner(selectedChat);
+          if (partner) {
+            avatarUrl = partner.avatar;
+            name = partner.nickname;
+          }
+      }
+
+      return (
+        <header className="flex items-center p-3 border-b border-border bg-card">
+          <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={() => setSelectedChat(null)}>
+            <ArrowLeft />
+          </Button>
+          <button 
+            className="flex items-center gap-3 text-left hover:bg-accent/50 p-1 rounded-md transition-colors disabled:cursor-default disabled:hover:bg-transparent" 
+            onClick={() => partner && setViewingProfile(partner)}
+            disabled={!partner}
+          >
+            <Avatar className="w-10 h-10">
+              <AvatarImage src={avatarUrl} />
+              <AvatarFallback>{getAvatarFallback(name)}</AvatarFallback>
+            </Avatar>
+            <h2 className="text-lg font-semibold">{name || 'Chat'}</h2>
+          </button>
+        </header>
+      );
+  }
+
   return (
     <>
       <div className="flex h-screen bg-background text-foreground overflow-hidden">
-        {/* Sidebar - User List */}
-        <aside className={`flex flex-col w-full md:w-1/3 lg:w-1/4 bg-card border-r border-border transition-transform duration-300 ease-in-out ${selectedUser ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-4 border-b border-border">
-            <h2 className="text-xl font-bold flex items-center"><Users className="mr-2" /> Mọi người</h2>
+        {/* Sidebar - Chat List */}
+        <aside className={`flex flex-col w-full md:w-1/3 lg:w-1/4 bg-card border-r border-border transition-transform duration-300 ease-in-out ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
+          <div className="p-4 border-b border-border flex justify-between items-center">
+            <h2 className="text-xl font-bold flex items-center"><Users className="mr-2" /> Trò chuyện</h2>
+             {profile?.role === 'admin' && (
+              <Button size="sm" variant="ghost" onClick={() => setIsCreatingGroup(true)} >
+                  <PlusCircle className="mr-2 h-4 w-4"/> Tạo nhóm
+              </Button>
+             )}
           </div>
           <ScrollArea className="flex-1">
-            {loadingUsers ? (
+            {loadingChats ? (
               <div className="p-4 space-y-4">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-muted rounded-full animate-pulse" />
-                    <div className="w-full space-y-2">
+                    <div className="flex-1 space-y-2">
                       <div className="h-4 bg-muted rounded w-3/4 animate-pulse"></div>
+                      <div className="h-3 bg-muted rounded w-1/2 animate-pulse"></div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <nav className="p-2 space-y-1">
-                {users.map(u => (
+                <h3 className="px-2 py-1 text-xs font-semibold text-muted-foreground">NHÓM</h3>
+                {chats.filter(c => c.isGroup).map(chat => (
                   <button
-                    key={u.id}
-                    onClick={() => handleUserSelect(u)}
-                    className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedUser?.id === u.id ? 'bg-accent' : ''}`}
+                    key={chat.id}
+                    onClick={() => setSelectedChat(chat)}
+                    className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedChat?.id === chat.id ? 'bg-accent' : ''}`}
                   >
                     <Avatar className="w-10 h-10 mr-3">
-                      <AvatarImage src={u.avatar} />
-                      <AvatarFallback>{getAvatarFallback(u.nickname)}</AvatarFallback>
+                      <AvatarImage src={chat.groupAvatar} />
+                      <AvatarFallback>{getAvatarFallback(chat.groupName)}</AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{u.nickname}</span>
+                    <div className="flex-1 truncate">
+                        <span className="font-medium">{chat.groupName}</span>
+                        <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>
+                    </div>
                   </button>
                 ))}
+                
+                <h3 className="px-2 pt-4 pb-1 text-xs font-semibold text-muted-foreground">TIN NHẮN TRỰC TIẾP</h3>
+                {users.map(u => {
+                    const chat = chats.find(c => !c.isGroup && c.participants.includes(u.id));
+                    return(
+                      <button
+                        key={u.id}
+                        onClick={() => handleUserSelect(u)}
+                        className={`w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent ${selectedChat?.id === chat?.id ? 'bg-accent' : ''}`}
+                      >
+                        <Avatar className="w-10 h-10 mr-3">
+                          <AvatarImage src={u.avatar} />
+                          <AvatarFallback>{getAvatarFallback(u.nickname)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 truncate">
+                            <span className="font-medium">{u.nickname}</span>
+                             {chat?.lastMessage && <p className="text-xs text-muted-foreground truncate">{chat.lastMessage}</p>}
+                        </div>
+                      </button>
+                    )
+                })}
               </nav>
             )}
           </ScrollArea>
         </aside>
 
         {/* Main Chat Area */}
-        <main className={`flex flex-col flex-1 transition-transform duration-300 ease-in-out ${!selectedUser ? 'hidden md:flex' : 'flex'}`}>
-          {selectedUser ? (
+        <main className={`flex flex-col flex-1 transition-transform duration-300 ease-in-out ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
+          {selectedChat ? (
             <>
-              {/* Chat Header */}
-              <header className="flex items-center p-3 border-b border-border bg-card">
-                <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={() => setSelectedUser(null)}>
-                  <ArrowLeft />
-                </Button>
-                <button className="flex items-center gap-3 text-left hover:bg-accent/50 p-1 rounded-md transition-colors" onClick={() => setIsViewingProfile(true)}>
-                  <Avatar className="w-10 h-10">
-                    <AvatarImage src={selectedUser.avatar} />
-                    <AvatarFallback>{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
-                  </Avatar>
-                  <h2 className="text-lg font-semibold">{selectedUser.nickname}</h2>
-                </button>
-              </header>
+              {renderChatHeader()}
 
               {/* Messages */}
               <ScrollArea className="flex-1 p-4 bg-background/50" ref={scrollAreaRef}>
                 <div className="space-y-4">
                   {loadingMessages ? (
-                    <div className="text-center text-muted-foreground">Đang tải tin nhắn...</div>
+                    <div className="flex justify-center items-center h-full">
+                        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    </div>
                   ) : (
-                    messages.map(msg => (
-                      <div key={msg.id} className={`flex items-end gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        {msg.senderId !== user?.id && (
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={selectedUser.avatar} />
-                            <AvatarFallback>{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
-                          </Avatar>
+                    messages.map((msg, index) => {
+                      const showSender = selectedChat.isGroup && (index === 0 || messages[index-1].senderId !== msg.senderId);
+                      return (
+                      <div key={msg.id} className={`flex flex-col gap-1`}>
+                        {showSender && msg.senderInfo && (
+                            <div className={`flex items-center gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start ml-10'}`}>
+                                <span className={`text-xs font-bold ${msg.senderId === profile?.id && profile?.role === 'admin' ? 'text-primary' : 'text-muted-foreground'}`}>
+                                    {msg.senderInfo.nickname}
+                                </span>
+                            </div>
                         )}
-                         <div className={`max-w-xs md:max-w-md lg:max-w-lg break-words ${msg.imageUrl ? 'bg-transparent' : (msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-card border')} rounded-lg ${msg.text ? 'px-3 py-2' : 'p-0'}`}>
-                          {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                          {msg.imageUrl && (
-                            <button onClick={() => setViewingImage(msg.imageUrl!)} className="w-full h-full block">
-                                <Image 
-                                  src={msg.imageUrl} 
-                                  alt="Ảnh đã gửi" 
-                                  width={250} 
-                                  height={250}
-                                  className="rounded-md object-cover max-w-full h-auto"
-                                />
-                            </button>
+                        <div className={`flex items-end gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
+                          {msg.senderId !== user?.id && (
+                            <Avatar className={`w-8 h-8 transition-opacity duration-300 ${showSender ? 'opacity-100' : 'opacity-0'}`}>
+                              {msg.senderInfo && <AvatarImage src={msg.senderInfo.avatar} />}
+                              <AvatarFallback>{getAvatarFallback(msg.senderInfo?.nickname)}</AvatarFallback>
+                            </Avatar>
                           )}
+                           <div className={`max-w-xs md:max-w-md lg:max-w-lg break-words ${msg.imageUrl ? 'bg-transparent' : (msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-card border')} rounded-lg ${msg.text ? 'px-3 py-2' : 'p-0'}`}>
+                            {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                            {msg.imageUrl && (
+                              <button onClick={() => setViewingImage(msg.imageUrl!)} className="w-full h-full block">
+                                  <Image 
+                                    src={msg.imageUrl} 
+                                    alt="Ảnh đã gửi" 
+                                    width={250} 
+                                    height={250}
+                                    className="rounded-md object-cover max-w-full h-auto"
+                                  />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))
+                      )
+                    })
                   )}
                   {isUploading && (
                       <div className="flex justify-end">
@@ -398,7 +601,7 @@ export default function MessagingPage() {
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground bg-background/50">
               <MessageCircle className="w-16 h-16 mb-4" />
               <h2 className="text-2xl font-semibold">Bắt đầu trò chuyện</h2>
-              <p className="max-w-xs mt-2">Chọn một người từ danh sách bên trái để xem tin nhắn của bạn.</p>
+              <p className="max-w-xs mt-2">Chọn một người hoặc một nhóm để xem tin nhắn.</p>
             </div>
           )}
         </main>
@@ -431,27 +634,91 @@ export default function MessagingPage() {
       </Dialog>
       
       {/* User Profile Dialog */}
-      {selectedUser && (
-        <Dialog open={isViewingProfile} onOpenChange={setIsViewingProfile}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-                <div className="flex flex-col items-center text-center gap-4 pt-4">
-                     <Avatar className="w-24 h-24 border-4 border-primary/20">
-                      <AvatarImage src={selectedUser.avatar} />
-                      <AvatarFallback className="text-4xl">{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
+      {viewingProfile && (
+        <Dialog open={!!viewingProfile} onOpenChange={() => setViewingProfile(null)}>
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+             <div className="h-24 bg-gradient-to-r from-primary via-accent to-secondary"/>
+             <div className="p-6 pt-0 -mt-12">
+                <div className="flex flex-col items-center text-center gap-4">
+                     <Avatar className="w-24 h-24 border-4 border-background shadow-md">
+                      <AvatarImage src={viewingProfile.avatar} />
+                      <AvatarFallback className="text-4xl">{getAvatarFallback(viewingProfile.nickname)}</AvatarFallback>
                     </Avatar>
                     <div className="space-y-1">
-                        <DialogTitle className="text-2xl">{selectedUser.nickname}</DialogTitle>
-                        <DialogDescription>@{selectedUser.username}</DialogDescription>
+                        <div className="flex items-center gap-2">
+                           <DialogTitle className="text-2xl">{viewingProfile.nickname}</DialogTitle>
+                           {viewingProfile.role === 'admin' && (
+                             <div className="relative group">
+                                <CheckCircle className="h-6 w-6 text-primary" />
+                                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full animate-ping"/>
+                                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full"/>
+                             </div>
+                           )}
+                        </div>
+                        <DialogDescription>@{viewingProfile.username}</DialogDescription>
                     </div>
                 </div>
-            </DialogHeader>
-            <div className="p-6 pt-2 text-center">
-                <p className="text-sm text-muted-foreground">{selectedUser.bio || "Người dùng này chưa có tiểu sử."}</p>
-            </div>
+                 <div className="mt-6 text-center">
+                    <p className="text-sm text-muted-foreground">{viewingProfile.bio || "Người dùng này chưa có tiểu sử."}</p>
+                </div>
+             </div>
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Create Group Dialog */}
+       <Dialog open={isCreatingGroup} onOpenChange={setIsCreatingGroup}>
+            <DialogContent className="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Tạo nhóm trò chuyện mới</DialogTitle>
+                    <DialogDescription>Chọn thành viên và đặt tên cho nhóm của bạn.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="flex items-center space-x-4">
+                        <Avatar className="h-20 w-20">
+                            <AvatarImage src={newGroup.avatarPreview} data-ai-hint="group avatar placeholder" />
+                            <AvatarFallback>G</AvatarFallback>
+                        </Avatar>
+                        <Button variant="outline" onClick={() => groupAvatarInputRef.current?.click()}>Chọn ảnh nhóm</Button>
+                        <input type="file" ref={groupAvatarInputRef} onChange={handleGroupAvatarChange} className="hidden" accept="image/*" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="group-name">Tên nhóm</Label>
+                        <Input id="group-name" value={newGroup.name} onChange={(e) => setNewGroup(p => ({...p, name: e.target.value}))} placeholder="Ví dụ: Team Dự án X"/>
+                    </div>
+                    <div className="space-y-2">
+                         <Label>Thành viên</Label>
+                         <ScrollArea className="h-48 border rounded-md">
+                             <div className="p-4 space-y-2">
+                                {users.map(u => (
+                                    <div key={u.id} className="flex items-center space-x-3">
+                                        <Checkbox 
+                                            id={`member-${u.id}`} 
+                                            checked={newGroup.members.has(u.id)}
+                                            onCheckedChange={() => handleMemberToggle(u.id)}
+                                        />
+                                        <Avatar className="w-8 h-8">
+                                            <AvatarImage src={u.avatar} />
+                                            <AvatarFallback>{getAvatarFallback(u.nickname)}</AvatarFallback>
+                                        </Avatar>
+                                        <Label htmlFor={`member-${u.id}`} className="font-normal cursor-pointer">{u.nickname}</Label>
+                                    </div>
+                                ))}
+                             </div>
+                         </ScrollArea>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="outline">Hủy</Button>
+                    </DialogClose>
+                    <Button onClick={handleCreateGroup} disabled={isSending}>
+                        {isSending ? <Loader2 className="animate-spin"/> : "Tạo nhóm"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </>
   );
 }
+
