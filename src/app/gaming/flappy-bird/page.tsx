@@ -1,13 +1,17 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft, Gamepad2, Play, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Gamepad2, Play, RefreshCw, Ghost } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
-// SVG assets for better graphics
-const birdSvg = `<svg viewBox="0 0 34 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M32.4167 12.4167C32.4167 11.0313 31.4323 9.88021 30.099 9.68229L28.5833 7.5H22.9167L23.3333 3.33333L20.6667 0.666667L16.25 5.83333L13.1667 4.16667L10.5 5L11.75 8.33333H6.66667L5 6.66667L0.833333 9.58333H6.25L5.83333 11.25H2.5L2.08333 12.9167H5.83333L5 15H2.08333L2.5 16.6667H5.41667L5 18.3333H1.66667L2.91667 21.25L6.66667 20L7.5 17.0833H12.5L12.0833 22.5L16.25 23.75L18.3333 19.5833H29.1667L30.4167 16.25H22.5L24.1667 12.9167H30.0833C31.401 12.9167 32.4167 11.8385 32.4167 12.4167Z" fill="#F2D45C"/><path d="M16.25 8.33333C17.6354 8.33333 18.75 7.21875 18.75 5.83333C18.75 4.44792 17.6354 3.33333 16.25 3.33333C14.8646 3.33333 13.75 4.44792 13.75 5.83333C13.75 7.21875 14.8646 8.33333 16.25 8.33333Z" fill="white"/><path d="M16.25 7.08333C16.9427 7.08333 17.5 6.52604 17.5 5.83333C17.5 5.14062 16.9427 4.58333 16.25 4.58333C15.5573 4.58333 15 5.14062 15 5.83333C15 6.52604 15.5573 7.08333 16.25 7.08333Z" fill="black"/><path d="M30.4167 16.25L29.1667 19.5833H18.3333L16.25 23.75L12.0833 22.5L12.5 17.0833H7.5L6.66667 20L2.91667 21.25L1.66667 18.3333H5L5.41667 16.6667H2.5L2.08333 15H5L5.83333 12.9167H2.08333L2.5 11.25H5.83333L6.25 9.58333H0.833333L5 6.66667L6.66667 8.33333H11.75L10.5 5L13.1667 4.16667L16.25 5.83333L20.6667 0.666667L23.3333 3.33333L22.9167 7.5H28.5833L30.099 9.68229C31.4323 9.88021 32.4167 11.0313 32.4167 12.4167Z" fill="#E4572E" opacity="0.2"/></svg>`;
+// SVG asset for a more fun bird character
+const birdSvg = `<svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M25 50C38.8071 50 50 38.8071 50 25C50 11.1929 38.8071 0 25 0C11.1929 0 0 11.1929 0 25C0 38.8071 11.1929 50 25 50Z" fill="#FFC107"/><path d="M37.5 18.75C37.5 16.8206 35.9794 15.3125 34.0625 15.3125C32.1456 15.3125 30.625 16.8206 30.625 18.75C30.625 20.6794 32.1456 22.1875 34.0625 22.1875C35.9794 22.1875 37.5 20.6794 37.5 18.75Z" fill="white"/><path d="M34.0625 20C34.8938 20 35.625 19.4625 35.625 18.75C35.625 18.0375 34.8938 17.5 34.0625 17.5C33.2312 17.5 32.5 18.0375 32.5 18.75C32.5 19.4625 33.2312 20 34.0625 20Z" fill="black"/><path d="M19.375 18.75C19.375 16.8206 17.8544 15.3125 15.9375 15.3125C14.0206 15.3125 12.5 16.8206 12.5 18.75C12.5 20.6794 14.0206 22.1875 15.9375 22.1875C17.8544 22.1875 19.375 20.6794 19.375 18.75Z" fill="white"/><path d="M15.9375 20C16.7688 20 17.5 19.4625 17.5 18.75C17.5 18.0375 16.7688 17.5 15.9375 17.5C15.1062 17.5 14.375 18.0375 14.375 18.75C14.375 19.4625 15.1062 20 15.9375 20Z" fill="black"/><path d="M25 35.625C29.6875 35.625 33.75 33.125 35.625 29.375H14.375C16.25 33.125 20.3125 35.625 25 35.625Z" fill="#E65100"/></svg>`;
 const pipeSvg = (height: number, canvasHeight: number, pipeGap: number) => `
   <svg width="52" height="${canvasHeight}" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -16,43 +20,46 @@ const pipeSvg = (height: number, canvasHeight: number, pipeGap: number) => `
         <stop offset="100%" stop-color="#558000" />
       </linearGradient>
     </defs>
-    
-    <rect x="2" y="0" width="48" height="${height - 25}" fill="url(#pipeGradient)" />
-    <rect x="2" y="0" width="48" height="${height - 25}" fill="black" fill-opacity="0.1" />
-    
-    <rect x="0" y="${height - 25}" width="52" height="25" fill="url(#pipeGradient)" rx="3" ry="3" />
-    <rect x="0" y="${height - 25}" width="52" height="25" fill="black" fill-opacity="0.2" rx="3" ry="3" />
-    <rect x="4" y="${height - 23}" width="44" height="18" fill="url(#pipeGradient)" stroke="#456800" stroke-width="2" rx="2" ry="2"/>
-
-    <rect x="2" y="${height + pipeGap + 25}" width="48" height="${canvasHeight - height - pipeGap - 25}" fill="url(#pipeGradient)" />
-     <rect x="2" y="${height + pipeGap + 25}" width="48" height="${canvasHeight - height - pipeGap - 25}" fill="black" fill-opacity="0.1" />
-   
-    <rect x="0" y="${height + pipeGap}" width="52" height="25" fill="url(#pipeGradient)" rx="3" ry="3" />
-    <rect x="0" y="${height + pipeGap}" width="52" height="25" fill="black" fill-opacity="0.2" rx="3" ry="3" />
-    <rect x="4" y="${height + pipeGap + 4}" width="44" height="18" fill="url(#pipeGradient)" stroke="#456800" stroke-width="2" rx="2" ry="2"/>
+    <rect x="2" y="0" width="48" height="${height - 25}" fill="url(#pipeGradient)" /><rect x="2" y="0" width="48" height="${height - 25}" fill="black" fill-opacity="0.1" />
+    <rect x="0" y="${height - 25}" width="52" height="25" fill="url(#pipeGradient)" rx="3" ry="3" /><rect x="0" y="${height - 25}" width="52" height="25" fill="black" fill-opacity="0.2" rx="3" ry="3" /><rect x="4" y="${height - 23}" width="44" height="18" fill="url(#pipeGradient)" stroke="#456800" stroke-width="2" rx="2" ry="2"/>
+    <rect x="2" y="${height + pipeGap + 25}" width="48" height="${canvasHeight - height - pipeGap - 25}" fill="url(#pipeGradient)" /><rect x="2" y="${height + pipeGap + 25}" width="48" height="${canvasHeight - height - pipeGap - 25}" fill="black" fill-opacity="0.1" />
+    <rect x="0" y="${height + pipeGap}" width="52" height="25" fill="url(#pipeGradient)" rx="3" ry="3" /><rect x="0" y="${height + pipeGap}" width="52" height="25" fill="black" fill-opacity="0.2" rx="3" ry="3" /><rect x="4" y="${height + pipeGap + 4}" width="44" height="18" fill="url(#pipeGradient)" stroke="#456800" stroke-width="2" rx="2" ry="2"/>
   </svg>
 `;
 
+interface DeathData {
+    id: string;
+    nickname: string;
+    position: { x: number, y: number };
+    avatar: string;
+}
+
 export default function FlappyBirdPage() {
+    const { profile } = useAuth();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
     const [isGameOver, setIsGameOver] = useState(true);
     const [gameStarted, setGameStarted] = useState(false);
     const [countdown, setCountdown] = useState<number | null>(null);
+    const [deathMarkers, setDeathMarkers] = useState<DeathData[]>([]);
 
     const gameAssets = useRef<{ 
-      birdImage: HTMLImageElement | null;
-      pipeImages: Record<string, HTMLImageElement>;
-      sounds: Record<string, HTMLAudioElement | null>;
+        birdImage: HTMLImageElement | null;
+        avatarImage: HTMLImageElement | null;
+        ghostImages: Record<string, HTMLImageElement>;
+        pipeImages: Record<string, HTMLImageElement>;
+        sounds: Record<string, HTMLAudioElement | null>;
     }>({
-      birdImage: null,
-      pipeImages: {},
-      sounds: { wing: null, hit: null, die: null }
+        birdImage: null,
+        avatarImage: null,
+        ghostImages: {},
+        pipeImages: {},
+        sounds: { wing: null, hit: null, die: null }
     });
 
     const gameVars = useRef({
-        bird: { x: 50, y: 150, width: 34, height: 24, velocity: 0 },
+        bird: { x: 50, y: 150, width: 40, height: 40, velocity: 0 },
         gravity: 0.25,
         lift: -5,
         pipes: [] as { x: number, y: number, passed: boolean }[],
@@ -63,13 +70,46 @@ export default function FlappyBirdPage() {
         frameCount: 0,
     });
 
+    const loadDeathMarkers = useCallback(async () => {
+        if (!profile) return;
+        try {
+            const deathsRef = collection(db, 'flappyBirdDeaths');
+            // Query for top 20 scorers
+            const topScoresQuery = query(deathsRef, orderBy('score', 'desc'), limit(20));
+            const topScoresSnapshot = await getDocs(topScoresQuery);
+            const topMarkers = topScoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
+
+            // Query for current user's last death, if not in top 20
+            let userMarker: DeathData | undefined;
+            const userInTop = topMarkers.some(marker => marker.id === profile.id);
+            if (!userInTop) {
+                 const userDeathQuery = query(deathsRef, where('userId', '==', profile.id), orderBy('timestamp', 'desc'), limit(1));
+                 const userDeathSnapshot = await getDocs(userDeathQuery);
+                 if (!userDeathSnapshot.empty) {
+                     userMarker = { id: userDeathSnapshot.docs[0].id, ...userDeathSnapshot.docs[0].data() } as DeathData;
+                 }
+            }
+
+            const combined = [...topMarkers];
+            if (userMarker) {
+                // Avoid duplicates if user is in top 20 but query found another record
+                if (!combined.some(m => m.id === userMarker!.id)) {
+                    combined.push(userMarker);
+                }
+            }
+            
+            setDeathMarkers(combined);
+        } catch (error) {
+            console.error("Error loading death markers:", error);
+        }
+    }, [profile]);
+    
     // Load assets
     useEffect(() => {
         const birdImg = new Image();
         birdImg.src = "data:image/svg+xml;base64," + btoa(birdSvg);
         birdImg.onload = () => { gameAssets.current.birdImage = birdImg; };
 
-        // Preload sounds
         const soundFiles = ['wing', 'hit', 'die'];
         soundFiles.forEach(sound => {
             const audio = new Audio(`/sounds/${sound}.mp3`);
@@ -78,6 +118,16 @@ export default function FlappyBirdPage() {
         });
 
     }, []);
+
+    // Load user avatar
+    useEffect(() => {
+        if (profile?.avatar) {
+            const avatarImg = new Image();
+            avatarImg.crossOrigin = "anonymous";
+            avatarImg.src = profile.avatar;
+            avatarImg.onload = () => { gameAssets.current.avatarImage = avatarImg; };
+        }
+    }, [profile?.avatar]);
 
     const playSound = (soundName: 'wing' | 'hit' | 'die') => {
         const sound = gameAssets.current.sounds[soundName];
@@ -97,6 +147,21 @@ export default function FlappyBirdPage() {
         }
         return gameAssets.current.pipeImages[key];
     }
+    
+    // Load ghost images
+    useEffect(() => {
+        deathMarkers.forEach(marker => {
+            if (!gameAssets.current.ghostImages[marker.id] && marker.avatar) {
+                const ghostAvatarImg = new Image();
+                ghostAvatarImg.crossOrigin = "anonymous";
+                ghostAvatarImg.src = marker.avatar;
+                ghostAvatarImg.onload = () => {
+                    gameAssets.current.ghostImages[marker.id] = ghostAvatarImg;
+                };
+            }
+        });
+    }, [deathMarkers]);
+
 
     useEffect(() => {
       const storedHighScore = localStorage.getItem('flappyBirdHighScore');
@@ -134,13 +199,41 @@ export default function FlappyBirdPage() {
 
         let animationFrameId: number;
 
+        const drawBird = (context: CanvasRenderingContext2D, birdX: number, birdY: number, birdW: number, birdH: number, avatarImg: HTMLImageElement | null, mainBird: boolean = true) => {
+            context.save();
+            if(!mainBird) {
+                context.globalAlpha = 0.4;
+            }
+            if (gameAssets.current.birdImage) {
+                context.drawImage(gameAssets.current.birdImage, birdX, birdY, birdW, birdH);
+            }
+            if (avatarImg) {
+                const avatarRadius = birdW / 3.5;
+                const avatarX = birdX + birdW / 2;
+                const avatarY = birdY + birdH / 2;
+                context.beginPath();
+                context.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2, true);
+                context.closePath();
+                context.clip();
+                context.drawImage(avatarImg, avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
+            }
+            context.restore();
+        }
+
         const draw = () => {
             drawBackground();
-
-            // Bird
-            if (gameAssets.current.birdImage) {
-                ctx.drawImage(gameAssets.current.birdImage, gameVars.current.bird.x, gameVars.current.bird.y, gameVars.current.bird.width, gameVars.current.bird.height);
-            }
+            
+            // Death Markers (ghosts)
+            deathMarkers.forEach(marker => {
+                if(marker.id !== profile?.id){ // Don't draw own ghost if playing
+                    const ghostAvatar = gameAssets.current.ghostImages[marker.id];
+                    drawBird(ctx, marker.position.x, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, ghostAvatar, false);
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${marker.nickname} đã chết ở đây`, marker.position.x + gameVars.current.bird.width / 2, marker.position.y - 5);
+                }
+            });
 
             // Pipes
             gameVars.current.pipes.forEach(pipe => {
@@ -149,6 +242,9 @@ export default function FlappyBirdPage() {
                      ctx.drawImage(pipeImage, pipe.x, 0);
                 }
             });
+
+            // Bird
+            drawBird(ctx, gameVars.current.bird.x, gameVars.current.bird.y, gameVars.current.bird.width, gameVars.current.bird.height, gameAssets.current.avatarImage);
         };
 
         const update = () => {
@@ -209,7 +305,7 @@ export default function FlappyBirdPage() {
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-    }, [isGameOver, countdown]);
+    }, [isGameOver, countdown, deathMarkers, profile]);
 
     const jump = () => {
         if (!isGameOver && countdown === null) {
@@ -219,6 +315,7 @@ export default function FlappyBirdPage() {
     };
     
     const triggerCountdown = () => {
+        loadDeathMarkers();
         setGameStarted(true);
         setIsGameOver(true);
         setCountdown(3);
@@ -239,17 +336,37 @@ export default function FlappyBirdPage() {
         setIsGameOver(false);
         setCountdown(null);
         setScore(0);
-        gameVars.current.bird = { x: 50, y: 150, width: 34, height: 24, velocity: 0 };
+        gameVars.current.bird = { x: 50, y: 150, width: 40, height: 40, velocity: 0 };
         gameVars.current.pipes = [];
         gameVars.current.frameCount = 0;
         jump();
     };
 
+    const saveDeathPosition = async () => {
+        if (!profile) return;
+        try {
+            const deathsRef = collection(db, 'flappyBirdDeaths');
+            await addDoc(deathsRef, {
+                userId: profile.id,
+                nickname: profile.nickname,
+                avatar: profile.avatar,
+                score: score,
+                position: {
+                    x: gameVars.current.bird.x,
+                    y: gameVars.current.bird.y
+                },
+                timestamp: new Date()
+            });
+        } catch (error) {
+            console.error("Error saving death position:", error);
+        }
+    };
 
     const endGame = () => {
-        if (isGameOver) return; // Prevent multiple calls
+        if (isGameOver) return;
         playSound('die');
         setIsGameOver(true);
+        saveDeathPosition();
         if (score > highScore) {
             setHighScore(score);
             localStorage.setItem('flappyBirdHighScore', score.toString());
@@ -287,10 +404,21 @@ export default function FlappyBirdPage() {
                         <ArrowLeft className="h-5 w-5" />
                     </Link>
                 </Button>
-                 <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-                    <Gamepad2 className="h-7 w-7" />
-                    Flappy Bird
-                </h1>
+                 <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
+                        <Gamepad2 className="h-7 w-7" />
+                        Flappy Bird
+                    </h1>
+                    {profile && (
+                        <div className="flex items-center gap-2">
+                            <Avatar className="h-8 w-8">
+                                <AvatarImage src={profile.avatar} />
+                                <AvatarFallback>{profile.nickname.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-semibold">{profile.nickname}</span>
+                        </div>
+                    )}
+                 </div>
             </header>
 
             <div className="relative w-full max-w-sm aspect-[9/16] bg-black shadow-2xl rounded-lg overflow-hidden border-4 border-primary/20">
@@ -313,8 +441,9 @@ export default function FlappyBirdPage() {
                 )}
                  {(!gameStarted && isGameOver) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white p-4 text-center">
-                        <h2 className="text-4xl font-extrabold mb-2">Flappy Bird</h2>
-                        <p className="text-lg mb-4">Nhấn để bắt đầu</p>
+                        <Ghost className="w-16 h-16 mb-4 text-primary" />
+                        <h2 className="text-4xl font-extrabold mb-2">Flappy Ghost</h2>
+                        <p className="text-lg mb-4">Bay qua các đường ống và né "hồn ma" của người chơi khác!</p>
                         <Button onClick={triggerCountdown} size="lg">
                             <Play className="mr-2" />
                             Bắt đầu
@@ -330,5 +459,5 @@ export default function FlappyBirdPage() {
              <p className="text-muted-foreground mt-2">Nhấn phím cách hoặc nhấp chuột để bay.</p>
         </div>
     );
-}
 
+    
