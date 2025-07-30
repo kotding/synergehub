@@ -25,6 +25,23 @@ const pipeSvg = (height: number, canvasHeight: number, pipeGap: number) => `
   </svg>
 `;
 
+const defaultBirdSvg = (rotation: number) => `
+  <svg width="40" height="40" viewBox="-20 -20 40 40" xmlns="http://www.w3.org/2000/svg">
+    <g transform="rotate(${rotation})">
+      <path d="M-13.5,2.5 C-13.5,5.5 -17,7 -17,7 C-17,7 -19,4.5 -19,2.5 C-19,-1.5 -15.5,-4.5 -11.5,-4.5 C-7.5,-4.5 -5.5,-1.5 -5.5,2.5 C-5.5,6 -9,7 -9,7 C-9,7 -13.5,5.5 -13.5,2.5 Z" fill="#EBCB4A" stroke="#C39B1F" stroke-width="2"/>
+      <path d="M-11.5,2.5 C-11.5,5 -14.5,6 -14.5,6 C-14.5,6 -16,4 -16,2.5 C-16,-1 -13,-3.5 -11.5,-3.5 C-10,-3.5 -8, -1 -8,2.5 C-8,5.5 -10,6.5 -10,6.5 C-10,6.5 -11.5,5 -11.5,2.5" fill="#F4E043"/>
+      <path d="M-12.5,-3.5 C-15,-4 -15,-6 -13.5,-7 C-12,-8 -10,-7.5 -9.5,-6 C-9,-4.5 -10,-3 -12.5,-3.5 Z" fill="white" stroke="black" stroke-width="0.5"/>
+      <circle cx="-11" cy="-5.5" r="1" fill="black"/>
+      <path d="M-6,2 C-6,2 2,-2 8,1 C14,4 8,8 3,7 C-2,6 -6,2 -6,2 Z" fill="#F4E043" stroke="#C39B1F" stroke-width="2"/>
+      <path d="M-9,2.5 C-9,4.5 -5,5.5 -1,4.5 C3,3.5 5,1 5,1" fill="none" stroke="#D9A824" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M-4, -10 C-2, -12 2, -12 4, -10 L -4 -10 Z" fill="#D84B20" stroke="#B83118" stroke-width="2"/>
+      <path d="M-4,-10 C-2,-9 2,-9 4,-10" fill="none" stroke="#E59783" stroke-width="1"/>
+      <path d="M-1, -10 L 0,-16 L 1,-10" fill="none" stroke="#B83118" stroke-width="1"/>
+    </g>
+  </svg>
+`;
+
+
 interface DeathData {
     id: string;
     userId: string;
@@ -47,18 +64,20 @@ export default function FlappyBirdPage() {
 
     const gameAssets = useRef<{ 
         avatarImage: HTMLImageElement | null;
+        defaultBirdImage: HTMLImageElement | null;
         ghostImages: Record<string, HTMLImageElement>;
         pipeImages: Record<string, HTMLImageElement>;
     }>({
         avatarImage: null,
+        defaultBirdImage: null,
         ghostImages: {},
         pipeImages: {},
     });
 
     const gameVars = useRef({
-        bird: { x: 60, y: 150, width: 40, height: 40, velocity: 0 },
-        gravity: 0.20,
-        lift: -4.5,
+        bird: { x: 60, y: 150, width: 40, height: 40, velocity: 0, rotation: 0 },
+        gravity: 0.18,
+        lift: -4,
         pipes: [] as { x: number, y: number, passed: boolean }[],
         pipeWidth: 52,
         pipeGap: 150,
@@ -77,13 +96,17 @@ export default function FlappyBirdPage() {
             const topMarkers = topScoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
     
             let userMarkers: DeathData[] = [];
-            const userDeathQuery = query(deathsRef, where('userId', '==', profile.id));
-            const userDeathSnapshot = await getDocs(userDeathQuery);
-            if (!userDeathSnapshot.empty) {
-                userMarkers = userDeathSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
+            if(profile?.id) {
+                const userDeathQuery = query(deathsRef, where('userId', '==', profile.id));
+                const userDeathSnapshot = await getDocs(userDeathQuery);
+                 if (!userDeathSnapshot.empty) {
+                    userMarkers = userDeathSnapshot.docs
+                        .map(doc => ({ id: doc.id, ...doc.data() } as DeathData))
+                        .sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+                }
             }
             
-            const combined = [...topMarkers, ...userMarkers];
+            const combined = [...topMarkers, ...(userMarkers.length > 0 ? [userMarkers[0]] : [])];
             const uniqueMarkers = Array.from(new Map(combined.map(item => [item.id, item])).values());
             
             setDeathMarkers(uniqueMarkers);
@@ -92,7 +115,7 @@ export default function FlappyBirdPage() {
         }
     }, [profile]);
     
-    // Load user avatar
+    // Load user avatar and default bird
     useEffect(() => {
         if (profile?.avatar) {
             const avatarImg = new Image();
@@ -100,6 +123,11 @@ export default function FlappyBirdPage() {
             avatarImg.src = profile.avatar;
             avatarImg.onload = () => { gameAssets.current.avatarImage = avatarImg; };
         }
+        
+        const birdImg = new Image();
+        birdImg.src = "data:image/svg+xml;base64," + btoa(defaultBirdSvg(0));
+        birdImg.onload = () => { gameAssets.current.defaultBirdImage = birdImg; };
+        
     }, [profile?.avatar]);
 
     const getPipeImage = (pipeY: number, canvasHeight: number) => {
@@ -163,29 +191,35 @@ export default function FlappyBirdPage() {
         };
 
         let animationFrameId: number;
-
-        const drawPlayer = (context: CanvasRenderingContext2D, birdX: number, birdY: number, birdW: number, birdH: number, avatarImg: HTMLImageElement | null, isGhost: boolean = false) => {
+        
+        const drawPlayer = (context: CanvasRenderingContext2D, birdX: number, birdY: number, birdW: number, birdH: number, rotation: number, avatarImg: HTMLImageElement | null, defaultBirdImg: HTMLImageElement | null, isGhost: boolean = false) => {
             context.save();
+            context.translate(birdX + birdW / 2, birdY + birdH / 2);
+            context.rotate(rotation * Math.PI / 180);
+            context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
+            
             if(isGhost) {
                 context.globalAlpha = 0.4;
             }
-            if (avatarImg && avatarImg.complete) {
+            
+            const imageToDraw = avatarImg && avatarImg.complete ? avatarImg : defaultBirdImg;
+
+            if (imageToDraw && imageToDraw.complete) {
                 context.beginPath();
                 context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
                 context.closePath();
                 context.clip();
-                context.drawImage(avatarImg, birdX, birdY, birdW, birdH);
-                context.restore(); // Restore clipping region
-                context.beginPath(); // Start a new path for the border
+                context.drawImage(imageToDraw, birdX, birdY, birdW, birdH);
+                context.restore(); // Restore translation and rotation
+                context.save(); // Save again for border
+                 context.translate(birdX + birdW / 2, birdY + birdH / 2);
+                 context.rotate(rotation * Math.PI / 180);
+                 context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
+                context.beginPath();
                 context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
                 context.strokeStyle = isGhost ? 'rgba(255, 255, 255, 0.4)' : 'white';
                 context.lineWidth = 2;
                 context.stroke();
-            } else {
-                 context.fillStyle = isGhost ? 'rgba(255, 255, 10, 0.4)' : '#FFC107';
-                 context.beginPath();
-                 context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW/2, 0, 2 * Math.PI);
-                 context.fill();
             }
              context.restore();
         }
@@ -208,7 +242,7 @@ export default function FlappyBirdPage() {
                     const ghostAvatar = gameAssets.current.ghostImages[marker.id];
                     const markerX = marker.position.x - gameVars.current.worldOffset;
                     if (markerX > -50 && markerX < canvas.width + 50) {
-                        drawPlayer(ctx, markerX, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, ghostAvatar, true);
+                        drawPlayer(ctx, markerX, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, 0, ghostAvatar, gameAssets.current.defaultBirdImage, true);
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                         ctx.font = 'bold 10px sans-serif';
                         ctx.textAlign = 'center';
@@ -218,13 +252,14 @@ export default function FlappyBirdPage() {
             });
 
             // Bird
-            drawPlayer(ctx, gameVars.current.bird.x, gameVars.current.bird.y, gameVars.current.bird.width, gameVars.current.bird.height, gameAssets.current.avatarImage, false);
+            drawPlayer(ctx, gameVars.current.bird.x, gameVars.current.bird.y, gameVars.current.bird.width, gameVars.current.bird.height, gameVars.current.bird.rotation, gameAssets.current.avatarImage, gameAssets.current.defaultBirdImage, false);
         };
 
         const update = () => {
             // Bird physics
             gameVars.current.bird.velocity += gameVars.current.gravity;
             gameVars.current.bird.y += gameVars.current.bird.velocity;
+            gameVars.current.bird.rotation = Math.min(Math.max(-20, gameVars.current.bird.velocity * 9), 90);
             
             // World movement
             gameVars.current.worldOffset += gameVars.current.pipeSpeed;
@@ -288,9 +323,11 @@ export default function FlappyBirdPage() {
     };
     
     const triggerCountdown = () => {
+        if (countdown !== null) return; // Prevent restarting countdown
+        
         loadDeathMarkers();
         setGameStarted(true);
-        setIsGameOver(true);
+        setIsGameOver(true); // Set to true to show countdown screen
         setCountdown(3);
         
         const timer = setInterval(() => {
@@ -309,7 +346,7 @@ export default function FlappyBirdPage() {
         setIsGameOver(false);
         setCountdown(null);
         setScore(0);
-        gameVars.current.bird = { x: 60, y: 150, width: 40, height: 40, velocity: 0 };
+        gameVars.current.bird = { x: 60, y: 150, width: 40, height: 40, velocity: 0, rotation: 0 };
         gameVars.current.pipes = [];
         gameVars.current.frameCount = 0;
         gameVars.current.worldOffset = 0;
@@ -339,7 +376,9 @@ export default function FlappyBirdPage() {
     const endGame = () => {
         if (isGameOver) return;
         setIsGameOver(true);
-        saveDeathPosition();
+        if(profile) {
+            saveDeathPosition();
+        }
         if (score > highScore) {
             setHighScore(score);
             localStorage.setItem('flappyBirdHighScore', score.toString());
@@ -355,7 +394,7 @@ export default function FlappyBirdPage() {
 
     const handleClick = () => {
         if (isGameOver) {
-            if (gameStarted || countdown === null) {
+             if (countdown === null) { // Only trigger if no countdown is active
                 triggerCountdown();
             }
         } else {
@@ -367,7 +406,7 @@ export default function FlappyBirdPage() {
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isGameOver, gameStarted, countdown]);
+    }, [isGameOver, countdown]); // Re-bind listener when game state changes
 
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background text-foreground p-4">
