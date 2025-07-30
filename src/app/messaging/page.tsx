@@ -381,7 +381,7 @@ export default function MessagingPage() {
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-                    disabled={loadingMessages || isUploading || isSending}
+                    disabled={loadingMessages || isUploading}
                   />
                   <Button onClick={handleSendMessage} disabled={!newMessage.trim() || loadingMessages || isUploading || isSending}>
                     {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send />}
@@ -427,5 +427,3 @@ export default function MessagingPage() {
     </>
   );
 }
-
-    
