@@ -96,16 +96,14 @@ export default function FlappyBirdPage() {
     
             let userMarkers: DeathData[] = [];
             if(profile?.id) {
-                const userDeathQuery = query(deathsRef, where('userId', '==', profile.id));
+                const userDeathQuery = query(deathsRef, where('userId', '==', profile.id), orderBy('timestamp', 'desc'), limit(1));
                 const userDeathSnapshot = await getDocs(userDeathQuery);
                  if (!userDeathSnapshot.empty) {
-                    userMarkers = userDeathSnapshot.docs
-                        .map(doc => ({ id: doc.id, ...doc.data() } as DeathData))
-                        .sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+                    userMarkers = userDeathSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData))
                 }
             }
             
-            const combined = [...topMarkers, ...(userMarkers.length > 0 ? [userMarkers[0]] : [])];
+            const combined = [...topMarkers, ...userMarkers];
             const uniqueMarkers = Array.from(new Map(combined.map(item => [item.id, item])).values());
             
             setDeathMarkers(uniqueMarkers);
