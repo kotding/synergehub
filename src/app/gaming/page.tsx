@@ -10,14 +10,8 @@ import { ArrowLeft, Search, Gamepad2 } from 'lucide-react';
 import Image from 'next/image';
 
 const allGames = [
-  { id: 1, title: 'Space Invaders', description: 'Classic arcade shooter', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'space invaders' },
-  { id: 2, title: 'Tetris Blast', description: 'Addictive puzzle challenge', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'tetris blocks' },
-  { id: 3, title: 'Pac-Maze', description: 'Navigate the neon maze', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'pac-man maze' },
-  { id: 4, title: 'Asteroid Belt', description: 'Fly through and survive', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'asteroid belt' },
-  { id: 5, title: 'Jungle Quest', description: 'An epic jungle adventure', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'jungle ruins' },
-  { id: 6, title: 'Cyber Racer', description: 'Futuristic racing game', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'cyberpunk race' },
-  { id: 7, title: 'Ocean Explorer', description: 'Discover deep sea mysteries', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'underwater coral' },
-  { id: 8, title: 'Castle Siege', description: 'Defend your kingdom', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'fantasy castle' },
+  { id: 1, title: 'Flappy Bird', description: 'Navigate the bird through the pipes.', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'flappy bird', href: '/gaming/flappy-bird' },
+  // Future games will be added here
 ];
 
 export default function GamingPage() {
@@ -63,24 +57,26 @@ export default function GamingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredGames.map(game => (
               <Card key={game.id} className="overflow-hidden bg-card/50 group transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-1">
-                <CardContent className="p-0">
-                  <div className="relative aspect-[4/3] w-full overflow-hidden">
-                    <Image
-                      src={game.imageUrl}
-                      alt={game.title}
-                      data-ai-hint={game.dataAiHint}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </div>
-                  <div className="p-4 space-y-2">
-                    <h3 className="text-xl font-bold truncate group-hover:text-primary transition-colors">{game.title}</h3>
-                    <p className="text-sm text-muted-foreground truncate">{game.description}</p>
-                    <Button className="w-full mt-2">
-                      Chơi ngay
-                    </Button>
-                  </div>
-                </CardContent>
+                 <Link href={game.href} className="block h-full">
+                    <CardContent className="p-0">
+                      <div className="relative aspect-[4/3] w-full overflow-hidden">
+                        <Image
+                          src={game.imageUrl}
+                          alt={game.title}
+                          data-ai-hint={game.dataAiHint}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <h3 className="text-xl font-bold truncate group-hover:text-primary transition-colors">{game.title}</h3>
+                        <p className="text-sm text-muted-foreground truncate">{game.description}</p>
+                        <Button className="w-full mt-2">
+                          Chơi ngay
+                        </Button>
+                      </div>
+                    </CardContent>
+                 </Link>
               </Card>
             ))}
           </div>
@@ -95,4 +91,3 @@ export default function GamingPage() {
     </div>
   );
 }
-
