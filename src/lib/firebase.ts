@@ -5,7 +5,7 @@ import { getStorage } from "firebase/storage";
 const firebaseConfig = {
   "projectId": "synergy-hub-yviyl",
   "appId": "1:102111219497:web:4a5b54b0ec7fd043f13138",
-  "storageBucket": "synergy-hub-yviyl.appspot.com",
+  "storageBucket": "quizgame-3e7a1.appspot.com",
   "apiKey": "AIzaSyBdCaTFR7RVrAjk7WTGbAuWfVZ8tyNuYMY",
   "authDomain": "synergy-hub-yviyl.firebaseapp.com",
   "measurementId": "",
