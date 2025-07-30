@@ -188,7 +188,7 @@ export default function MessagingPage() {
 
     } catch (error) {
         console.error("Error uploading image: ", error);
-        toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi ảnh." });
+        toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi ảnh. Vui lòng kiểm tra console để biết chi tiết." });
     } finally {
         setIsUploading(false);
         if(fileInputRef.current) {
@@ -342,3 +342,5 @@ export default function MessagingPage() {
     </div>
   );
 }
+
+    
