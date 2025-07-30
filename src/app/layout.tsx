@@ -1,7 +1,15 @@
 import type {Metadata} from 'next';
+import { Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from '@/components/ui/toaster';
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-space-grotesk',
+});
+
 
 export const metadata: Metadata = {
   title: 'Synergy Hub',
@@ -15,12 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet" />
-      </head>
-      <body className="font-body antialiased">
+      <body className={`${spaceGrotesk.variable} font-body antialiased`}>
         <AuthProvider>
           {children}
           <Toaster />
