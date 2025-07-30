@@ -245,6 +245,17 @@ export default function MessagingPage() {
         lastMessageTimestamp: serverTimestamp()
       }, { merge: true });
 
+      // --- Start UI Fix ---
+      // Optimistically update the chat in the local state to prevent "jumping"
+      setChats(prevChats => 
+        prevChats.map(c => 
+          c.id === selectedChat.id 
+            ? { ...c, lastMessage: textToSend, lastMessageTimestamp: Timestamp.now() }
+            : c
+        )
+      );
+      // --- End UI Fix ---
+
     } catch (error) {
       console.error("Error sending message: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi tin nhắn." });
@@ -280,6 +291,17 @@ export default function MessagingPage() {
             lastMessage: "Đã gửi một ảnh",
             lastMessageTimestamp: serverTimestamp()
         }, { merge: true });
+
+        // --- Start UI Fix ---
+        // Optimistically update the chat in the local state to prevent "jumping"
+        setChats(prevChats => 
+            prevChats.map(c => 
+            c.id === selectedChat.id 
+                ? { ...c, lastMessage: "Đã gửi một ảnh", lastMessageTimestamp: Timestamp.now() }
+                : c
+            )
+        );
+        // --- End UI Fix ---
 
     } catch (error) {
         console.error("Error uploading image: ", error);
@@ -429,7 +451,13 @@ export default function MessagingPage() {
       );
   }
 
-  const getUserById = (userId: string) => users.find(u => u.id === userId);
+  const getUserById = (userId: string) => users.find(u => u.id === userId) || allUsersMap.get(userId);
+  const allUsersMap = useMemo(() => {
+    const map = new Map<string, User>();
+    if (profile) map.set(profile.id, profile);
+    users.forEach(u => map.set(u.id, u));
+    return map;
+  }, [users, profile]);
 
 
   return (
@@ -760,4 +788,3 @@ export default function MessagingPage() {
   );
 }
 
-    
