@@ -720,11 +720,7 @@ export default function MessagingPage() {
                         <div className="flex items-center gap-2">
                            <DialogTitle className="text-2xl">{viewingProfile.nickname}</DialogTitle>
                            {viewingProfile.role === 'admin' && (
-                             <div className="relative group">
-                                <CheckCircle className="h-6 w-6 text-primary" />
-                                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full animate-ping"/>
-                                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full"/>
-                             </div>
+                             <CheckCircle className="h-6 w-6 text-primary" />
                            )}
                         </div>
                         <DialogDescription>@{viewingProfile.username}</DialogDescription>
@@ -793,5 +789,3 @@ export default function MessagingPage() {
     </>
   );
 }
-
-    
