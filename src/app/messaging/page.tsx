@@ -227,11 +227,20 @@ export default function MessagingPage() {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChat?.id || !user || isSending) return;
-
+  
     setIsSending(true);
     const textToSend = newMessage;
     setNewMessage('');
-    
+  
+    // Optimistically update the chat list
+    setChats(prevChats => 
+      prevChats.map(c => 
+        c.id === selectedChat.id 
+          ? { ...c, lastMessage: textToSend, lastMessageTimestamp: Timestamp.now() }
+          : c
+      )
+    );
+  
     try {
       const messagesRef = collection(db, 'chats', selectedChat.id, 'messages');
       await addDoc(messagesRef, {
@@ -239,47 +248,55 @@ export default function MessagingPage() {
         text: textToSend,
         timestamp: serverTimestamp(),
       });
-      // Update last message on chat
+      // Update last message on chat document in Firestore
       await setDoc(doc(db, 'chats', selectedChat.id), {
         lastMessage: textToSend,
         lastMessageTimestamp: serverTimestamp()
       }, { merge: true });
-
-      // --- Start UI Fix ---
-      // Optimistically update the chat in the local state to prevent "jumping"
-      setChats(prevChats => 
-        prevChats.map(c => 
-          c.id === selectedChat.id 
-            ? { ...c, lastMessage: textToSend, lastMessageTimestamp: Timestamp.now() }
-            : c
-        )
-      );
-      // --- End UI Fix ---
-
+  
     } catch (error) {
       console.error("Error sending message: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi tin nhắn." });
       setNewMessage(textToSend); // Restore message on error
+       // Revert optimistic update on error
+       setChats(prevChats => 
+        prevChats.map(c => 
+          c.id === selectedChat.id 
+            ? { ...c, lastMessage: selectedChat.lastMessage, lastMessageTimestamp: selectedChat.lastMessageTimestamp }
+            : c
+        )
+      );
     } finally {
       setIsSending(false);
     }
   };
-
+  
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !selectedChat?.id || !user) return;
-
+  
     if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ variant: "destructive", title: "Lỗi", description: "Kích thước ảnh không được vượt quá 5MB." });
         return;
     }
-
+  
     setIsUploading(true);
+  
+    // Optimistically update the chat list for image upload
+    const lastMessagePreview = "Đã gửi một ảnh";
+    setChats(prevChats => 
+        prevChats.map(c => 
+        c.id === selectedChat.id 
+            ? { ...c, lastMessage: lastMessagePreview, lastMessageTimestamp: Timestamp.now() }
+            : c
+        )
+    );
+  
     try {
         const storageRef = ref(storage, `chat_images/${selectedChat.id}/${Date.now()}_${file.name}`);
         await uploadBytes(storageRef, file);
         const imageUrl = await getDownloadURL(storageRef);
-
+  
         const messagesRef = collection(db, 'chats', selectedChat.id, 'messages');
         await addDoc(messagesRef, {
             senderId: user.id,
@@ -288,24 +305,21 @@ export default function MessagingPage() {
         });
         
         await setDoc(doc(db, 'chats', selectedChat.id), {
-            lastMessage: "Đã gửi một ảnh",
+            lastMessage: lastMessagePreview,
             lastMessageTimestamp: serverTimestamp()
         }, { merge: true });
-
-        // --- Start UI Fix ---
-        // Optimistically update the chat in the local state to prevent "jumping"
-        setChats(prevChats => 
-            prevChats.map(c => 
-            c.id === selectedChat.id 
-                ? { ...c, lastMessage: "Đã gửi một ảnh", lastMessageTimestamp: Timestamp.now() }
-                : c
-            )
-        );
-        // --- End UI Fix ---
-
+  
     } catch (error) {
         console.error("Error uploading image: ", error);
         toast({ variant: "destructive", title: "Lỗi gửi ảnh", description: (error as Error).message });
+        // Revert optimistic update on error
+        setChats(prevChats => 
+            prevChats.map(c => 
+              c.id === selectedChat.id 
+                ? { ...c, lastMessage: selectedChat.lastMessage, lastMessageTimestamp: selectedChat.lastMessageTimestamp }
+                : c
+            )
+          );
     } finally {
         setIsUploading(false);
         if(fileInputRef.current) {
@@ -788,3 +802,4 @@ export default function MessagingPage() {
   );
 }
 
+    
