@@ -48,7 +48,6 @@ export default function MessagingPage() {
       setLoadingUsers(true);
       try {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('id', '!=', user.id));
         const querySnapshot = await getDocs(usersRef);
         const allUsers = querySnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as User))
@@ -75,7 +74,7 @@ export default function MessagingPage() {
       const q = query(chatsRef, where('participants', 'array-contains', user.id));
       const querySnapshot = await getDocs(q);
       
-      let existingChat = null;
+      let existingChat: (Chat & { id: string }) | null = null;
       querySnapshot.forEach(doc => {
         const chat = doc.data() as Chat;
         if (chat.participants.includes(selected.id)) {
@@ -153,10 +152,9 @@ export default function MessagingPage() {
             <div className="p-4 space-y-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center space-x-3">
-                  <Avatar className="w-10 h-10 bg-muted rounded-full animate-pulse" />
+                  <div className="w-10 h-10 bg-muted rounded-full animate-pulse" />
                   <div className="w-full space-y-2">
                     <div className="h-4 bg-muted rounded w-3/4 animate-pulse"></div>
-                    <div className="h-3 bg-muted rounded w-1/2 animate-pulse"></div>
                   </div>
                 </div>
               ))}
