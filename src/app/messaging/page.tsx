@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, getDocs, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 import { db, storage } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
@@ -50,7 +50,7 @@ interface Chat {
   groupAvatar?: string;
   admins?: string[];
   lastMessage?: string;
-  lastMessageTimestamp?: any;
+  lastMessageTimestamp?: Timestamp;
 }
 
 export default function MessagingPage() {
@@ -104,10 +104,19 @@ export default function MessagingPage() {
     if (!user) return;
     setLoadingChats(true);
     const chatsRef = collection(db, 'chats');
-    const q = query(chatsRef, where('participants', 'array-contains', user.id), orderBy('lastMessageTimestamp', 'desc'));
+    // Removed orderBy to prevent index error. Sorting will be done on the client.
+    const q = query(chatsRef, where('participants', 'array-contains', user.id));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userChats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Chat));
+      
+      // Sort chats by last message timestamp on the client
+      userChats.sort((a, b) => {
+        const timeA = a.lastMessageTimestamp?.toMillis() || 0;
+        const timeB = b.lastMessageTimestamp?.toMillis() || 0;
+        return timeB - timeA;
+      });
+
       setChats(userChats);
       setLoadingChats(false);
     }, (error) => {
@@ -197,7 +206,7 @@ export default function MessagingPage() {
                 id: newChatRef.id,
                 participants: [user.id, selected.id],
                 isGroup: false,
-                lastMessageTimestamp: serverTimestamp()
+                lastMessageTimestamp: serverTimestamp() as Timestamp
             };
             await setDoc(newChatRef, newChat);
             setSelectedChat(newChat);
@@ -299,7 +308,7 @@ export default function MessagingPage() {
               admins: [profile.id],
               participants: [profile.id, ...Array.from(newGroup.members)],
               lastMessage: `Nhóm được tạo bởi ${profile.nickname}`,
-              lastMessageTimestamp: serverTimestamp()
+              lastMessageTimestamp: serverTimestamp() as Timestamp
           };
           
           await setDoc(groupChatRef, newChatData);
@@ -722,3 +731,5 @@ export default function MessagingPage() {
   );
 }
 
+
+    
