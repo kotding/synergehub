@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, ArrowLeft, Users, MessageCircle, ImagePlus, Loader2, Download, Smile } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
@@ -22,6 +22,8 @@ interface User {
   id: string;
   nickname: string;
   avatar: string;
+  username: string;
+  bio: string;
 }
 
 interface Message {
@@ -50,6 +52,7 @@ export default function MessagingPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [isViewingProfile, setIsViewingProfile] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -288,11 +291,13 @@ export default function MessagingPage() {
                 <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={() => setSelectedUser(null)}>
                   <ArrowLeft />
                 </Button>
-                <Avatar className="w-10 h-10 mr-3">
-                  <AvatarImage src={selectedUser.avatar} />
-                  <AvatarFallback>{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
-                </Avatar>
-                <h2 className="text-lg font-semibold">{selectedUser.nickname}</h2>
+                <button className="flex items-center gap-3 text-left hover:bg-accent/50 p-1 rounded-md transition-colors" onClick={() => setIsViewingProfile(true)}>
+                  <Avatar className="w-10 h-10">
+                    <AvatarImage src={selectedUser.avatar} />
+                    <AvatarFallback>{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
+                  </Avatar>
+                  <h2 className="text-lg font-semibold">{selectedUser.nickname}</h2>
+                </button>
               </header>
 
               {/* Messages */}
@@ -424,6 +429,29 @@ export default function MessagingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* User Profile Dialog */}
+      {selectedUser && (
+        <Dialog open={isViewingProfile} onOpenChange={setIsViewingProfile}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+                <div className="flex flex-col items-center text-center gap-4 pt-4">
+                     <Avatar className="w-24 h-24 border-4 border-primary/20">
+                      <AvatarImage src={selectedUser.avatar} />
+                      <AvatarFallback className="text-4xl">{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
+                    </Avatar>
+                    <div className="space-y-1">
+                        <DialogTitle className="text-2xl">{selectedUser.nickname}</DialogTitle>
+                        <DialogDescription>@{selectedUser.username}</DialogDescription>
+                    </div>
+                </div>
+            </DialogHeader>
+            <div className="p-6 pt-2 text-center">
+                <p className="text-sm text-muted-foreground">{selectedUser.bio || "Người dùng này chưa có tiểu sử."}</p>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
