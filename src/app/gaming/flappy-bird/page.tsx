@@ -32,6 +32,7 @@ interface DeathData {
     nickname: string;
     position: { x: number, y: number };
     avatar: string;
+    timestamp: any;
 }
 
 export default function FlappyBirdPage() {
@@ -74,25 +75,24 @@ export default function FlappyBirdPage() {
         if (!profile) return;
         try {
             const deathsRef = collection(db, 'flappyBirdDeaths');
-            // Query for top 20 scorers
             const topScoresQuery = query(deathsRef, orderBy('score', 'desc'), limit(20));
             const topScoresSnapshot = await getDocs(topScoresQuery);
             const topMarkers = topScoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
-
-            // Query for current user's last death, if not in top 20
+    
             let userMarker: DeathData | undefined;
             const userInTop = topMarkers.some(marker => marker.id === profile.id);
             if (!userInTop) {
-                 const userDeathQuery = query(deathsRef, where('userId', '==', profile.id), orderBy('timestamp', 'desc'), limit(1));
+                 const userDeathQuery = query(deathsRef, where('userId', '==', profile.id));
                  const userDeathSnapshot = await getDocs(userDeathQuery);
                  if (!userDeathSnapshot.empty) {
-                     userMarker = { id: userDeathSnapshot.docs[0].id, ...userDeathSnapshot.docs[0].data() } as DeathData;
+                     const userDeaths = userDeathSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
+                     userDeaths.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+                     userMarker = userDeaths[0];
                  }
             }
-
+    
             const combined = [...topMarkers];
             if (userMarker) {
-                // Avoid duplicates if user is in top 20 but query found another record
                 if (!combined.some(m => m.id === userMarker!.id)) {
                     combined.push(userMarker);
                 }
@@ -305,7 +305,7 @@ export default function FlappyBirdPage() {
         return () => {
             cancelAnimationFrame(animationFrameId);
         };
-    }, [isGameOver, countdown, deathMarkers, profile]);
+    }, [isGameOver, countdown, deathMarkers, profile, loadDeathMarkers]);
 
     const jump = () => {
         if (!isGameOver && countdown === null) {
@@ -459,5 +459,7 @@ export default function FlappyBirdPage() {
              <p className="text-muted-foreground mt-2">Nhấn phím cách hoặc nhấp chuột để bay.</p>
         </div>
     );
+
+}
 
     
