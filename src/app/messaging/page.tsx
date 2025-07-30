@@ -10,10 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, ArrowLeft, Users, MessageCircle, ImagePlus, Loader2, Download } from 'lucide-react';
+import { Send, ArrowLeft, Users, MessageCircle, ImagePlus, Loader2, Download, Smile } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 
 
 interface User {
@@ -46,6 +48,7 @@ export default function MessagingPage() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +82,7 @@ export default function MessagingPage() {
     if (scrollAreaRef.current) {
         const scrollContainer = scrollAreaRef.current.querySelector('div:first-child') as HTMLElement;
         if(scrollContainer){
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            setTimeout(() => scrollContainer.scrollTop = scrollContainer.scrollHeight, 100);
         }
     }
   }, [messages]);
@@ -150,19 +153,25 @@ export default function MessagingPage() {
   }, [chatId, toast]);
 
   const handleSendMessage = async () => {
-    if ((!newMessage.trim() && !isUploading) || !chatId || !user) return;
+    if (!newMessage.trim() || !chatId || !user || isSending) return;
 
+    setIsSending(true);
+    const textToSend = newMessage;
+    setNewMessage('');
+    
     try {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       await addDoc(messagesRef, {
         senderId: user.id,
-        text: newMessage,
+        text: textToSend,
         timestamp: serverTimestamp(),
       });
-      setNewMessage('');
     } catch (error) {
       console.error("Error sending message: ", error);
       toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi tin nhắn." });
+      setNewMessage(textToSend); // Restore message on error
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -197,6 +206,10 @@ export default function MessagingPage() {
             fileInputRef.current.value = "";
         }
     }
+  };
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setNewMessage(prevMessage => prevMessage + emojiData.emoji);
   };
 
   const getAvatarFallback = (name: string) => {
@@ -296,8 +309,8 @@ export default function MessagingPage() {
                             <AvatarFallback>{getAvatarFallback(selectedUser.nickname)}</AvatarFallback>
                           </Avatar>
                         )}
-                         <div className={`max-w-xs md:max-w-md lg:max-w-lg ${msg.imageUrl ? 'bg-transparent' : (msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-card border')} rounded-lg ${msg.text ? 'px-3 py-2' : 'p-0'}`}>
-                          {msg.text && <p className="text-sm">{msg.text}</p>}
+                         <div className={`max-w-xs md:max-w-md lg:max-w-lg break-words ${msg.imageUrl ? 'bg-transparent' : (msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-card border')} rounded-lg ${msg.text ? 'px-3 py-2' : 'p-0'}`}>
+                          {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                           {msg.imageUrl && (
                             <button onClick={() => setViewingImage(msg.imageUrl!)} className="w-full h-full block">
                                 <Image 
@@ -339,22 +352,39 @@ export default function MessagingPage() {
                       variant="ghost" 
                       size="icon"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
+                      disabled={isUploading || isSending}
                       title="Gửi ảnh"
                   >
                       <ImagePlus />
                   </Button>
+                  
+                  <Popover>
+                      <PopoverTrigger asChild>
+                           <Button 
+                              variant="ghost" 
+                              size="icon"
+                              disabled={isUploading || isSending}
+                              title="Gửi biểu cảm"
+                          >
+                              <Smile />
+                          </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 border-none">
+                          <EmojiPicker onEmojiClick={onEmojiClick} />
+                      </PopoverContent>
+                  </Popover>
+
                   <Input
                     type="text"
                     placeholder="Nhập tin nhắn..."
                     className="flex-1"
                     value={newMessage}
                     onChange={e => setNewMessage(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                    disabled={loadingMessages || isUploading}
+                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                    disabled={loadingMessages || isUploading || isSending}
                   />
-                  <Button onClick={handleSendMessage} disabled={!newMessage.trim() || loadingMessages || isUploading}>
-                    <Send />
+                  <Button onClick={handleSendMessage} disabled={!newMessage.trim() || loadingMessages || isUploading || isSending}>
+                    {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send />}
                   </Button>
                 </div>
               </div>
@@ -397,3 +427,5 @@ export default function MessagingPage() {
     </>
   );
 }
+
+    
