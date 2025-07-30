@@ -96,10 +96,13 @@ export default function FlappyBirdPage() {
     
             let userMarkers: DeathData[] = [];
             if(profile?.id) {
-                const userDeathQuery = query(deathsRef, where('userId', '==', profile.id), orderBy('timestamp', 'desc'), limit(1));
+                const userDeathQuery = query(deathsRef, where('userId', '==', profile.id));
                 const userDeathSnapshot = await getDocs(userDeathQuery);
                  if (!userDeathSnapshot.empty) {
-                    userMarkers = userDeathSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData))
+                    const userDeaths = userDeathSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
+                    // Sort client-side to find the most recent one
+                    userDeaths.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+                    userMarkers = [userDeaths[0]];
                 }
             }
             
@@ -470,3 +473,5 @@ export default function FlappyBirdPage() {
     );
 }
 
+
+    
