@@ -88,7 +88,6 @@ export default function FlappyBirdPage() {
     });
 
     const loadDeathMarkers = useCallback(async () => {
-        if (!profile) return;
         try {
             const deathsRef = collection(db, 'flappyBirdDeaths');
             const topScoresQuery = query(deathsRef, orderBy('score', 'desc'), limit(20));
@@ -119,7 +118,7 @@ export default function FlappyBirdPage() {
     useEffect(() => {
         if (profile?.avatar) {
             const avatarImg = new Image();
-            avatarImg.crossOrigin = "anonymous";
+            avatarImg.crossOrigin = "anonymous"; // Important for loading external images onto canvas
             avatarImg.src = profile.avatar;
             avatarImg.onload = () => { gameAssets.current.avatarImage = avatarImg; };
         }
@@ -146,7 +145,7 @@ export default function FlappyBirdPage() {
         deathMarkers.forEach(marker => {
             if (!gameAssets.current.ghostImages[marker.id] && marker.avatar) {
                 const ghostAvatarImg = new Image();
-                ghostAvatarImg.crossOrigin = "anonymous";
+                ghostAvatarImg.crossOrigin = "anonymous"; // Important for loading external images
                 ghostAvatarImg.src = marker.avatar;
                 ghostAvatarImg.onload = () => {
                     gameAssets.current.ghostImages[marker.id] = ghostAvatarImg;
@@ -210,11 +209,11 @@ export default function FlappyBirdPage() {
                 context.closePath();
                 context.clip();
                 context.drawImage(imageToDraw, birdX, birdY, birdW, birdH);
-                context.restore(); // Restore translation and rotation
-                context.save(); // Save again for border
-                 context.translate(birdX + birdW / 2, birdY + birdH / 2);
-                 context.rotate(rotation * Math.PI / 180);
-                 context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
+                context.restore(); // Restore to reset clip
+                context.save(); // Save again for rotation and border
+                context.translate(birdX + birdW / 2, birdY + birdH / 2);
+                context.rotate(rotation * Math.PI / 180);
+                context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
                 context.beginPath();
                 context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
                 context.strokeStyle = isGhost ? 'rgba(255, 255, 255, 0.4)' : 'white';
