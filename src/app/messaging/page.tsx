@@ -1,17 +1,19 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { collection, query, getDocs, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, ArrowLeft, Users, MessageCircle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Send, ArrowLeft, Users, MessageCircle, ImagePlus, Loader2 } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
+import Image from 'next/image';
+
 
 interface User {
   id: string;
@@ -22,7 +24,8 @@ interface User {
 interface Message {
   id: string;
   senderId: string;
-  text: string;
+  text?: string;
+  imageUrl?: string;
   timestamp: any;
 }
 
@@ -33,6 +36,7 @@ interface Chat {
 
 export default function MessagingPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -40,6 +44,11 @@ export default function MessagingPage() {
   const [chatId, setChatId] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
 
   // Fetch all users except the current one
   useEffect(() => {
@@ -51,30 +60,45 @@ export default function MessagingPage() {
         const querySnapshot = await getDocs(usersRef);
         const allUsers = querySnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as User))
-          .filter(u => u.id !== user.id); // Ensure we filter out the current user
+          .filter(u => u.id !== user.id);
         setUsers(allUsers);
       } catch (error) {
         console.error("Error fetching users: ", error);
+        toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải danh sách người dùng." });
       } finally {
         setLoadingUsers(false);
       }
     };
     fetchUsers();
-  }, [user]);
+  }, [user, toast]);
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+        const scrollContainer = scrollAreaRef.current.querySelector('div:first-child') as HTMLElement;
+        if(scrollContainer){
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+    }
+  }, [messages]);
+
 
   // Handle selecting a user and finding/creating a chat
   const handleUserSelect = async (selected: User) => {
     if (!user) return;
     setSelectedUser(selected);
     setLoadingMessages(true);
-    setMessages([]); // Clear previous messages
+    setMessages([]);
+    setChatId(null);
     
     try {
       const chatsRef = collection(db, 'chats');
+      // Query for chats where user.id is a participant
       const q = query(chatsRef, where('participants', 'array-contains', user.id));
       const querySnapshot = await getDocs(q);
       
       let existingChat: (Chat & { id: string }) | null = null;
+      // Find the specific chat that also includes the selected user
       querySnapshot.forEach(doc => {
         const chat = doc.data() as Chat;
         if (chat.participants.includes(selected.id)) {
@@ -88,6 +112,7 @@ export default function MessagingPage() {
       } else {
         const newChatRef = await addDoc(chatsRef, {
           participants: [user.id, selected.id],
+          createdAt: serverTimestamp(),
         });
         currentChatId = newChatRef.id;
       }
@@ -95,6 +120,7 @@ export default function MessagingPage() {
 
     } catch (error) {
       console.error("Error finding or creating chat: ", error);
+      toast({ variant: "destructive", title: "Lỗi", description: "Không thể bắt đầu cuộc trò chuyện." });
     } 
   };
   
@@ -114,14 +140,15 @@ export default function MessagingPage() {
       setLoadingMessages(false);
     }, (error) => {
       console.error("Error fetching messages: ", error);
+      toast({ variant: "destructive", title: "Lỗi", description: "Không thể tải tin nhắn." });
       setLoadingMessages(false);
     });
 
     return () => unsubscribe();
-  }, [chatId]);
+  }, [chatId, toast]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !chatId || !user) return;
+    if ((!newMessage.trim() && !isUploading) || !chatId || !user) return;
 
     try {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
@@ -133,6 +160,41 @@ export default function MessagingPage() {
       setNewMessage('');
     } catch (error) {
       console.error("Error sending message: ", error);
+      toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi tin nhắn." });
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !chatId || !user) return;
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ variant: "destructive", title: "Lỗi", description: "Kích thước ảnh không được vượt quá 5MB." });
+        return;
+    }
+
+    setIsUploading(true);
+    try {
+        const storageRef = ref(storage, `chat_images/${chatId}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const imageUrl = await getDownloadURL(storageRef);
+
+        const messagesRef = collection(db, 'chats', chatId, 'messages');
+        await addDoc(messagesRef, {
+            senderId: user.id,
+            imageUrl: imageUrl,
+            timestamp: serverTimestamp(),
+        });
+
+    } catch (error) {
+        console.error("Error uploading image: ", error);
+        toast({ variant: "destructive", title: "Lỗi", description: "Không thể gửi ảnh." });
+    } finally {
+        setIsUploading(false);
+        // Reset file input
+        if(fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
     }
   };
 
@@ -196,7 +258,7 @@ export default function MessagingPage() {
             </header>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-4 bg-background/50">
+            <ScrollArea className="flex-1 p-4 bg-background/50" ref={scrollAreaRef}>
               <div className="space-y-4">
                  {loadingMessages ? (
                    <div className="text-center text-muted-foreground">Đang tải tin nhắn...</div>
@@ -210,10 +272,27 @@ export default function MessagingPage() {
                          </Avatar>
                       )}
                       <div className={`rounded-lg px-3 py-2 max-w-xs md:max-w-md lg:max-w-lg ${msg.senderId === user?.id ? 'bg-primary text-primary-foreground' : 'bg-card border'}`}>
-                        <p className="text-sm">{msg.text}</p>
+                        {msg.text && <p className="text-sm">{msg.text}</p>}
+                        {msg.imageUrl && (
+                          <Image 
+                            src={msg.imageUrl} 
+                            alt="Ảnh đã gửi" 
+                            width={200} 
+                            height={200}
+                            className="rounded-md object-cover"
+                           />
+                        )}
                       </div>
                     </div>
                   ))
+                 )}
+                 {isUploading && (
+                    <div className="flex justify-end">
+                        <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-3 py-2">
+                           <Loader2 className="h-4 w-4 animate-spin"/>
+                           <p className="text-sm">Đang gửi ảnh...</p>
+                        </div>
+                    </div>
                  )}
               </div>
             </ScrollArea>
@@ -221,6 +300,23 @@ export default function MessagingPage() {
             {/* Message Input */}
             <div className="p-4 border-t border-border bg-card">
               <div className="flex items-center space-x-2">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    accept="image/png, image/jpeg, image/gif"
+                    disabled={isUploading}
+                />
+                <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    title="Gửi ảnh"
+                >
+                    <ImagePlus />
+                </Button>
                 <Input
                   type="text"
                   placeholder="Nhập tin nhắn..."
@@ -228,9 +324,9 @@ export default function MessagingPage() {
                   value={newMessage}
                   onChange={e => setNewMessage(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                  disabled={loadingMessages}
+                  disabled={loadingMessages || isUploading}
                 />
-                <Button onClick={handleSendMessage} disabled={!newMessage.trim() || loadingMessages}>
+                <Button onClick={handleSendMessage} disabled={!newMessage.trim() || loadingMessages || isUploading}>
                   <Send />
                 </Button>
               </div>
@@ -247,3 +343,5 @@ export default function MessagingPage() {
     </div>
   );
 }
+
+    
