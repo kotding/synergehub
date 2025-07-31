@@ -4,10 +4,9 @@
 import React from 'react';
 import {
   useEditorColor,
-  TColor,
-  ColorDropdownMenuItems,
   ColorInput,
-  colors,
+  TColor,
+  useColorDropdownMenuState,
 } from '@udecode/plate-font';
 import {
   Popover,
@@ -16,8 +15,20 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+
+const colors: TColor[] = [
+  { name: 'Default', value: 'default', isBrightColor: false },
+  { name: 'Gray', value: '#757575', isBrightColor: false },
+  { name: 'Brown', value: '#795548', isBrightColor: false },
+  { name: 'Orange', value: '#FF9800', isBrightColor: false },
+  { name: 'Yellow', value: '#FFC107', isBrightColor: false },
+  { name: 'Green', value: '#4CAF50', isBrightColor: false },
+  { name: 'Blue', value: '#2196F3', isBrightColor: false },
+  { name: 'Purple', value: '#9C27B0', isBrightColor: false },
+  { name: 'Red', value: '#F44336', isBrightColor: false },
+  { name: 'Pink', value: '#E91E63', isBrightColor: false },
+];
 
 type ColorDropdownMenuProps = {
   nodeType: string;
@@ -30,7 +41,12 @@ export function ColorDropdownMenu({
   tooltip,
   children,
 }: ColorDropdownMenuProps) {
-  const { color, activeColor, updateColor } = useEditorColor(nodeType);
+  const state = useColorDropdownMenuState({
+      nodeType,
+      colors,
+      closeOnSelect: true,
+  });
+  const { selectedColor, color, updateColor } = useEditorColor(nodeType);
 
   const render = (
     <Popover>
@@ -40,14 +56,29 @@ export function ColorDropdownMenu({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
-        <div className="flex flex-col gap-4 p-4">
-          <ColorInput color={color} setColor={updateColor} />
-          <Separator />
-          <ColorDropdownMenuItems
-            color={color}
-            onValueChange={updateColor}
-          />
-        </div>
+            <div className="flex flex-col gap-4 p-4">
+              <ColorInput
+                value={selectedColor || color}
+                onChange={updateColor}
+              >
+                Custom
+              </ColorInput>
+              <Separator />
+               {colors.map((colorOption) => (
+                  <button
+                    type="button"
+                    key={colorOption.name}
+                    className="flex items-center gap-2 p-1 rounded hover:bg-accent"
+                    onClick={() => updateColor(colorOption.value === 'default' ? '' : colorOption.value)}
+                  >
+                    <div
+                      className="h-6 w-6 rounded-full border"
+                      style={{ backgroundColor: colorOption.value === 'default' ? 'transparent' : colorOption.value }}
+                    />
+                    <span>{colorOption.name}</span>
+                  </button>
+                ))}
+            </div>
       </PopoverContent>
     </Popover>
   );
