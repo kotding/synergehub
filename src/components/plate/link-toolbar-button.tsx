@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
@@ -31,52 +30,34 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
   const isLink = !!editor?.selection && someNode(editor, { match: { type: nodeType } });
 
   const render = (
-    <Popover open={isLink && focused}>
-       <PopoverTrigger asChild>
-          <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
-            {children}
-          </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-        <div className="p-2">
-          <Input
-            className="h-8"
-            placeholder="Dán đường dẫn..."
-            defaultValue={getPluginOptions(editor, nodeType).getLinkUrl?.(editor) ?? ''}
-            onChange={(e) => {
-              upsertLink(editor, { url: e.target.value });
-            }}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
+      <Popover open={isLink && focused}>
+          <PopoverAnchor>
+            <PopoverTrigger asChild>
+                <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
+                  {children}
+                </Button>
+            </PopoverTrigger>
+          </PopoverAnchor>
+        <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="p-2">
+            <Input
+              className="h-8"
+              placeholder="Dán đường dẫn..."
+              defaultValue={getPluginOptions(editor, nodeType).getLinkUrl?.(editor) ?? ''}
+              onChange={(e) => {
+                upsertLink(editor, { url: e.target.value });
+              }}
+            />
+          </div>
+        </PopoverContent>
+      </Popover>
   );
 
   if (tooltip) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-            <Popover open={isLink && focused}>
-                <PopoverAnchor>
-                    <PopoverTrigger asChild>
-                        <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
-                            {children}
-                        </Button>
-                    </PopoverTrigger>
-                </PopoverAnchor>
-                <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-                    <div className="p-2">
-                    <Input
-                        className="h-8"
-                        placeholder="Dán đường dẫn..."
-                        defaultValue={getPluginOptions(editor, nodeType).getLinkUrl?.(editor) ?? ''}
-                        onChange={(e) => {
-                        upsertLink(editor, { url: e.target.value });
-                        }}
-                    />
-                    </div>
-                </PopoverContent>
-            </Popover>
+            {render}
         </TooltipTrigger>
         <TooltipContent>{tooltip}</TooltipContent>
       </Tooltip>
@@ -85,5 +66,3 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
 
   return render;
 }
-
-    

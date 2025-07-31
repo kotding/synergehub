@@ -17,13 +17,11 @@ import {
 import {
   Bold,
   Code,
-  Heading1,
   Italic,
   Plus,
   Trash2,
   FileText,
   Loader2,
-  Save,
   Palette,
   Link as LinkIcon,
   Strikethrough,
@@ -32,17 +30,15 @@ import {
 import {
   Plate,
   createPlateEditor,
-  PlateProvider,
   usePlateEditorRef,
-  usePlateEditorState,
   someNode,
-  getEditorString
+  getEditorString,
 } from '@udecode/plate-common';
 import {
     createLinkPlugin,
     ELEMENT_LINK,
     upsertLink,
-    getPluginOptions
+    getPluginOptions,
 } from '@udecode/plate-link';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -51,15 +47,13 @@ import { useDebouncedCallback } from 'use-debounce';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   Tooltip,
-  TooltipContent,
   TooltipProvider,
+  TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
@@ -71,13 +65,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
     createBoldPlugin,
     createItalicPlugin,
@@ -138,7 +126,6 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [loadingNotes, setLoadingNotes] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -293,12 +280,11 @@ function Editor({ note }: { note: Note }) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt.toDate());
 
-  const editor = useMemo(() => createPlateEditor({ plugins }), []);
+  const editor = useMemo(() => createPlateEditor({ plugins }), [plugins]);
   
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
     const noteRef = doc(db, 'notes', note.id);
-    const contentString = getEditorString(editor, newContent);
     const finalTitle = newTitle.trim() === '' ? 'Ghi chú không có tiêu đề' : newTitle;
 
     await setDoc(noteRef, { 
@@ -322,57 +308,49 @@ function Editor({ note }: { note: Note }) {
   };
 
   return (
-    <PlateProvider editor={editor} initialValue={note.content} onChange={handleContentChange}>
-      <div className="p-4 border-b border-border flex items-center justify-between gap-4">
-        <Input
-          value={title}
-          onChange={handleTitleChange}
-          placeholder="Tiêu đề ghi chú"
-          className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto"
-        />
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {isSaving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Đang lưu...</span>
-            </>
-          ) : (
-            <span>
-              Đã lưu lúc {lastSaved.toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      </div>
       <div className="flex flex-col flex-1">
-        <div className="p-2 border-b border-border sticky top-0 bg-background z-10">
-          <PlateToolbar />
-        </div>
-        <ScrollArea className="flex-1">
-          <div className="p-8">
-            <Plate
-              editableProps={{
-                className: 'outline-none prose prose-neutral dark:prose-invert max-w-full',
-                autoFocus: true,
-              }}
+        <div className="p-4 border-b border-border flex items-center justify-between gap-4">
+            <Input
+            value={title}
+            onChange={handleTitleChange}
+            placeholder="Tiêu đề ghi chú"
+            className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto"
             />
-          </div>
-        </ScrollArea>
-      </div>
-    </PlateProvider>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {isSaving ? (
+                <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Đang lưu...</span>
+                </>
+            ) : (
+                <span>
+                Đã lưu lúc {lastSaved.toLocaleTimeString()}
+                </span>
+            )}
+            </div>
+        </div>
+        <Plate editor={editor} initialValue={note.content} onChange={handleContentChange}>
+            <div className="p-2 border-b border-border sticky top-0 bg-background z-10">
+                <PlateToolbar />
+            </div>
+            <ScrollArea className="flex-1">
+                <div className="p-8">
+                    <Plate
+                        editableProps={{
+                            className: 'outline-none prose prose-neutral dark:prose-invert max-w-full',
+                            autoFocus: true,
+                        }}
+                    />
+                </div>
+            </ScrollArea>
+        </Plate>
+    </div>
   );
 }
 
 function PlateToolbar() {
     const editor = usePlateEditorRef();
     
-    const isLink = !!editor?.selection && someNode(editor, { match: { type: ELEMENT_LINK } });
-
-    const getLinkUrl = useCallback(() => {
-        if (isLink) {
-            return getPluginOptions(editor, ELEMENT_LINK).getLinkUrl?.(editor);
-        }
-    }, [editor, isLink]);
-
     return (
         <div className="flex items-center gap-1">
             <MarkToolbarButton tooltip="In đậm" nodeType={MARK_BOLD}>
@@ -404,6 +382,3 @@ function PlateToolbar() {
         </div>
     );
 }
-
-
-    
