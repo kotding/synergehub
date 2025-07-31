@@ -126,7 +126,7 @@ export default function FlappyBirdPage() {
     // Load ghost images
     useEffect(() => {
         deathMarkers.forEach(marker => {
-            if (!gameAssets.current.ghostImages[marker.userId] && marker.avatar) {
+            if (!gameAssets.current.ghostImages[marker.userId] && marker.avatar && !marker.avatar.includes('placehold.co')) {
                 const ghostAvatarImg = new Image();
                 ghostAvatarImg.crossOrigin = "anonymous"; // Important for loading external images
                 ghostAvatarImg.src = marker.avatar;
@@ -197,24 +197,30 @@ export default function FlappyBirdPage() {
                 context.globalAlpha = 0.4;
             }
             
-            const imageToDraw = avatarImg && avatarImg.complete ? avatarImg : defaultBirdImg;
+            // Check if avatar is valid and not a placeholder
+            const shouldUseAvatar = avatarImg && avatarImg.complete && !avatarImg.src.includes('placehold.co');
+            const imageToDraw = shouldUseAvatar ? avatarImg : defaultBirdImg;
 
             if (imageToDraw && imageToDraw.complete) {
-                context.beginPath();
-                context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
-                context.closePath();
-                context.clip();
-                context.drawImage(imageToDraw, birdX, birdY, birdW, birdH);
-                context.restore(); // Restore to reset clip
-                context.save(); // Save again for rotation and border
-                context.translate(birdX + birdW / 2, birdY + birdH / 2);
-                context.rotate(rotation * Math.PI / 180);
-                context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
-                context.beginPath();
-                context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
-                context.strokeStyle = isGhost ? 'rgba(255, 255, 255, 0.4)' : 'white';
-                context.lineWidth = 2;
-                context.stroke();
+                if (shouldUseAvatar) {
+                    context.beginPath();
+                    context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
+                    context.closePath();
+                    context.clip();
+                    context.drawImage(imageToDraw, birdX, birdY, birdW, birdH);
+                    context.restore(); // Restore to reset clip
+                    context.save(); // Save again for rotation and border
+                    context.translate(birdX + birdW / 2, birdY + birdH / 2);
+                    context.rotate(rotation * Math.PI / 180);
+                    context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
+                    context.beginPath();
+                    context.arc(birdX + birdW / 2, birdY + birdH / 2, birdW / 2, 0, Math.PI * 2, true);
+                    context.strokeStyle = isGhost ? 'rgba(255, 255, 255, 0.4)' : 'white';
+                    context.lineWidth = 2;
+                    context.stroke();
+                } else {
+                     context.drawImage(imageToDraw, birdX, birdY, birdW, birdH);
+                }
             }
              context.restore();
         }
@@ -478,4 +484,5 @@ export default function FlappyBirdPage() {
              <p className="text-muted-foreground mt-2">Nhấn phím cách hoặc nhấp chuột để bay.</p>
         </div>
     );
-}
+
+    
