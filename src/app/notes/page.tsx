@@ -32,7 +32,7 @@ import {
   Plate,
   createPlateEditor,
   PlateContent,
-  TEditableProps,
+  PlateEditor,
 } from '@udecode/plate-common';
 import {
     createLinkPlugin,
@@ -289,17 +289,12 @@ export default function NotesPage() {
   );
 }
 
-const editableProps: TEditableProps = {
-    className: 'outline-none prose prose-neutral dark:prose-invert max-w-full p-8 flex-1',
-    autoFocus: true,
-};
-
 function Editor({ note }: { note: Note }) {
   const [title, setTitle] = useState(note.title);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
-  const editor = useMemo(() => createPlateEditor({ plugins }), []);
+  const editor = useMemo(() => createPlateEditor<any>({ plugins }), []);
   
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
@@ -362,7 +357,11 @@ function Editor({ note }: { note: Note }) {
             <div className="p-2 border-b border-border sticky top-0 bg-background z-10">
                 <PlateToolbar />
             </div>
-            <PlateContent {...editableProps}/>
+            <PlateContent
+              className="outline-none prose prose-neutral dark:prose-invert max-w-full p-8 flex-1"
+              autoFocus
+              readOnly={false}
+            />
         </div>
     </Plate>
   );
@@ -400,5 +399,7 @@ function PlateToolbar() {
         </div>
     );
 }
+
+    
 
     
