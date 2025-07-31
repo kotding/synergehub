@@ -133,35 +133,43 @@ export default function NotesPage() {
     setLoadingNotes(true);
     const q = query(
       collection(db, 'notes'),
-      where('ownerId', '==', user.id)
+      where('ownerId', '==', user.id),
+      orderBy('updatedAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userNotes = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Note)
       );
-      
-      // Sort notes on the client side
-      const sortedNotes = userNotes.sort((a, b) => {
-        const timeA = a.updatedAt?.toMillis() || 0;
-        const timeB = b.updatedAt?.toMillis() || 0;
-        return timeB - timeA;
-      });
 
-      setNotes(sortedNotes);
+      setNotes(userNotes);
       setLoadingNotes(false);
 
-      if (!selectedNote && sortedNotes.length > 0) {
-        setSelectedNote(sortedNotes[0]);
-      } else if(selectedNote) {
-        const updatedSelected = sortedNotes.find(n => n.id === selectedNote.id);
-        if (updatedSelected) {
-            setSelectedNote(updatedSelected);
-        } else if (sortedNotes.length > 0) {
-            setSelectedNote(sortedNotes[0])
-        } else {
-            setSelectedNote(null);
+      if (snapshot.docChanges().some(change => change.type === 'added')) {
+        // A new note was added, select it.
+        const newNote = userNotes[0];
+        if (newNote) {
+          setSelectedNote(newNote);
         }
+      } else if (selectedNote) {
+        // If a note is selected, check if it still exists.
+        const updatedSelected = userNotes.find(n => n.id === selectedNote.id);
+        if (updatedSelected) {
+          // If it exists, update its content.
+          setSelectedNote(updatedSelected);
+        } else if (userNotes.length > 0) {
+          // If it doesn't exist (was deleted), select the first available note.
+          setSelectedNote(userNotes[0]);
+        } else {
+          // If no notes are left, clear the selection.
+          setSelectedNote(null);
+        }
+      } else if (userNotes.length > 0) {
+        // If no note is selected, select the first one.
+        setSelectedNote(userNotes[0]);
+      } else {
+        // No notes and none selected.
+        setSelectedNote(null);
       }
     }, (error) => {
         console.error("Firestore snapshot error:", error);
@@ -169,7 +177,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedNote]);
+  }, [user]);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -182,6 +190,7 @@ export default function NotesPage() {
       updatedAt: serverTimestamp() as Timestamp,
     };
     await setDoc(newNoteRef, newNote);
+    // The useEffect will handle selecting the new note
   };
   
 
@@ -191,9 +200,7 @@ export default function NotesPage() {
 
   const handleDeleteNote = async (noteId: string) => {
     await deleteDoc(doc(db, 'notes', noteId));
-    if (selectedNote?.id === noteId) {
-      setSelectedNote(notes.length > 1 ? notes.find(n => n.id !== noteId) || null : null);
-    }
+    // The useEffect will handle re-selecting a note if needed
   };
 
   return (
