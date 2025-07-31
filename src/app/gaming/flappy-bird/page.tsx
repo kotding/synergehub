@@ -137,13 +137,26 @@ export default function FlappyBirdPage() {
         });
     }, [deathMarkers]);
 
-
+    // Load high score from Firebase
     useEffect(() => {
-      const storedHighScore = localStorage.getItem('flappyBirdHighScore');
-      if (storedHighScore) {
-        setHighScore(parseInt(storedHighScore, 10));
-      }
-    }, []);
+        const fetchHighScore = async () => {
+            if (profile) {
+                const highScoreRef = doc(db, 'flappyBirdHighScores', profile.id);
+                const docSnap = await getDoc(highScoreRef);
+                if (docSnap.exists()) {
+                    setHighScore(docSnap.data().score || 0);
+                }
+            } else {
+                 // Fallback to localStorage if not logged in
+                 const storedHighScore = localStorage.getItem('flappyBirdHighScore');
+                 if (storedHighScore) {
+                    setHighScore(parseInt(storedHighScore, 10));
+                 }
+            }
+        };
+        fetchHighScore();
+    }, [profile]);
+
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -374,6 +387,7 @@ export default function FlappyBirdPage() {
         }
         if (score > highScore) {
             setHighScore(score);
+            // Also save to localStorage for non-logged-in users or as a fallback
             localStorage.setItem('flappyBirdHighScore', score.toString());
         }
     };
