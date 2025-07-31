@@ -9,14 +9,12 @@ import {
 import {
   ELEMENT_LINK,
   upsertLink,
-  getPluginOptions,
 } from '@udecode/plate-link';
 import { useFocused, useSelected } from 'slate-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  PopoverAnchor,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,19 +29,17 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
 
   const render = (
       <Popover open={isLink && focused}>
-          <PopoverAnchor>
             <PopoverTrigger asChild>
                 <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
                   {children}
                 </Button>
             </PopoverTrigger>
-          </PopoverAnchor>
         <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
           <div className="p-2">
             <Input
               className="h-8"
               placeholder="Dán đường dẫn..."
-              defaultValue={getPluginOptions(editor, nodeType).getLinkUrl?.(editor) ?? ''}
+              defaultValue={editor.getOptions(ELEMENT_LINK).getLinkUrl?.(editor) ?? ''}
               onChange={(e) => {
                 upsertLink(editor, { url: e.target.value });
               }}
