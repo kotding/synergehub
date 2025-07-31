@@ -145,18 +145,26 @@ export default function NotesPage() {
       setNotes(userNotes);
       setLoadingNotes(false);
 
-      if (snapshot.docChanges().some(change => change.type === 'added')) {
+      // Logic to select a note after changes
+      const docChanges = snapshot.docChanges();
+
+      if (docChanges.some(change => change.type === 'added')) {
         // A new note was added, select it.
-        const newNote = userNotes[0];
-        if (newNote) {
-          setSelectedNote(newNote);
+        // It's usually the first one due to ordering by updatedAt desc
+        const newNoteId = docChanges.find(c => c.type === 'added')?.doc.id;
+        const noteToSelect = newNoteId ? userNotes.find(n => n.id === newNoteId) : userNotes[0];
+        if (noteToSelect) {
+          setSelectedNote(noteToSelect);
         }
       } else if (selectedNote) {
         // If a note is selected, check if it still exists.
         const updatedSelected = userNotes.find(n => n.id === selectedNote.id);
         if (updatedSelected) {
           // If it exists, update its content.
-          setSelectedNote(updatedSelected);
+          // This prevents stale content if another client updated the note.
+           if (JSON.stringify(updatedSelected) !== JSON.stringify(selectedNote)) {
+              setSelectedNote(updatedSelected);
+           }
         } else if (userNotes.length > 0) {
           // If it doesn't exist (was deleted), select the first available note.
           setSelectedNote(userNotes[0]);
@@ -297,7 +305,7 @@ export default function NotesPage() {
 function Editor({ note }: { note: Note }) {
   const [title, setTitle] = useState(note.title);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState(note.updatedAt.toDate());
+  const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
   const editor = useMemo(() => createPlateEditor({ plugins }), []);
   
@@ -325,6 +333,13 @@ function Editor({ note }: { note: Note }) {
   const handleContentChange = (newContent: any) => {
     debouncedSave(title, newContent);
   };
+
+  useEffect(() => {
+    // Update lastSaved state when the note's updatedAt timestamp changes from the server
+    if (note.updatedAt) {
+      setLastSaved(note.updatedAt.toDate());
+    }
+  }, [note.updatedAt]);
 
   return (
       <div className="flex flex-col flex-1">
