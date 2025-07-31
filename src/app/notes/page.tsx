@@ -12,7 +12,8 @@ import {
   setDoc,
   where,
   addDoc,
-  Timestamp
+  Timestamp,
+  orderBy
 } from 'firebase/firestore';
 import {
   Bold,
@@ -38,7 +39,6 @@ import {
     createLinkPlugin,
     ELEMENT_LINK,
     upsertLink,
-    getPluginOptions,
 } from '@udecode/plate-link';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -382,4 +382,3 @@ function PlateToolbar() {
         </div>
     );
 }
-
