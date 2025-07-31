@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { ArrowLeft, Gamepad2, Play, RefreshCw, Ghost } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, getDocs, where, doc, setDoc, getDoc } from 'firebase/firestore';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 const pipeSvg = (height: number, canvasHeight: number, pipeGap: number) => `
@@ -41,14 +41,11 @@ const defaultBirdSvg = (rotation: number) => `
   </svg>
 `;
 
-
 interface DeathData {
-    id: string;
     userId: string;
     nickname: string;
     position: { x: number, y: number };
     avatar: string;
-    timestamp: any;
     score: number;
 }
 
@@ -89,31 +86,15 @@ export default function FlappyBirdPage() {
 
     const loadDeathMarkers = useCallback(async () => {
         try {
-            const deathsRef = collection(db, 'flappyBirdDeaths');
-            const topScoresQuery = query(deathsRef, orderBy('score', 'desc'), limit(20));
+            const highScoresRef = collection(db, 'flappyBirdHighScores');
+            const topScoresQuery = query(highScoresRef, orderBy('score', 'desc'), limit(20));
             const topScoresSnapshot = await getDocs(topScoresQuery);
-            const topMarkers = topScoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
-    
-            let userMarkers: DeathData[] = [];
-            if(profile?.id) {
-                const userDeathQuery = query(deathsRef, where('userId', '==', profile.id));
-                const userDeathSnapshot = await getDocs(userDeathQuery);
-                 if (!userDeathSnapshot.empty) {
-                    const userDeaths = userDeathSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeathData));
-                    // Sort client-side to find the most recent one
-                    userDeaths.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
-                    userMarkers = [userDeaths[0]];
-                }
-            }
-            
-            const combined = [...topMarkers, ...userMarkers];
-            const uniqueMarkers = Array.from(new Map(combined.map(item => [item.id, item])).values());
-            
-            setDeathMarkers(uniqueMarkers);
+            const markers = topScoresSnapshot.docs.map(doc => doc.data() as DeathData);
+            setDeathMarkers(markers);
         } catch (error) {
             console.error("Error loading death markers:", error);
         }
-    }, [profile]);
+    }, []);
     
     // Load user avatar and default bird
     useEffect(() => {
@@ -144,12 +125,12 @@ export default function FlappyBirdPage() {
     // Load ghost images
     useEffect(() => {
         deathMarkers.forEach(marker => {
-            if (!gameAssets.current.ghostImages[marker.id] && marker.avatar) {
+            if (!gameAssets.current.ghostImages[marker.userId] && marker.avatar) {
                 const ghostAvatarImg = new Image();
                 ghostAvatarImg.crossOrigin = "anonymous"; // Important for loading external images
                 ghostAvatarImg.src = marker.avatar;
                 ghostAvatarImg.onload = () => {
-                    gameAssets.current.ghostImages[marker.id] = ghostAvatarImg;
+                    gameAssets.current.ghostImages[marker.userId] = ghostAvatarImg;
                 };
             }
         });
@@ -238,16 +219,14 @@ export default function FlappyBirdPage() {
             
             // Death Markers (ghosts)
             deathMarkers.forEach(marker => {
-                if(marker.userId !== profile?.id){
-                    const ghostAvatar = gameAssets.current.ghostImages[marker.id];
-                    const markerX = marker.position.x - gameVars.current.worldOffset;
-                    if (markerX > -50 && markerX < canvas.width + 50) {
-                        drawPlayer(ctx, markerX, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, 0, ghostAvatar, gameAssets.current.defaultBirdImage, true);
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                        ctx.font = 'bold 10px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(`${marker.nickname} đã chết ở đây`, markerX + gameVars.current.bird.width / 2, marker.position.y - 5);
-                    }
+                const ghostAvatar = gameAssets.current.ghostImages[marker.userId];
+                const markerX = marker.position.x - gameVars.current.worldOffset;
+                if (markerX > -50 && markerX < canvas.width + 50) {
+                    drawPlayer(ctx, markerX, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, 0, ghostAvatar, gameAssets.current.defaultBirdImage, true);
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${marker.nickname} đã chết ở đây`, markerX + gameVars.current.bird.width / 2, marker.position.y - 5);
                 }
             });
 
@@ -356,8 +335,10 @@ export default function FlappyBirdPage() {
     const saveDeathPosition = async () => {
         if (!profile) return;
         try {
-            const deathsRef = collection(db, 'flappyBirdDeaths');
-            await addDoc(deathsRef, {
+            const highScoreRef = doc(db, 'flappyBirdHighScores', profile.id);
+            const docSnap = await getDoc(highScoreRef);
+
+            const newHighScoreData = {
                 userId: profile.id,
                 nickname: profile.nickname,
                 avatar: profile.avatar,
@@ -366,10 +347,19 @@ export default function FlappyBirdPage() {
                     x: gameVars.current.bird.x + gameVars.current.worldOffset,
                     y: gameVars.current.bird.y
                 },
-                timestamp: new Date()
-            });
+            };
+
+            if (docSnap.exists()) {
+                // Document exists, check if current score is higher
+                if (score > docSnap.data().score) {
+                    await setDoc(highScoreRef, newHighScoreData);
+                }
+            } else {
+                // Document doesn't exist, create it
+                await setDoc(highScoreRef, newHighScoreData);
+            }
         } catch (error) {
-            console.error("Error saving death position:", error);
+            console.error("Error saving high score position:", error);
         }
     };
 
@@ -472,6 +462,5 @@ export default function FlappyBirdPage() {
         </div>
     );
 }
-
 
     
