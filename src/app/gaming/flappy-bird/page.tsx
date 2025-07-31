@@ -59,6 +59,12 @@ export default function FlappyBirdPage() {
     const [gameStarted, setGameStarted] = useState(false);
     const [countdown, setCountdown] = useState<number | null>(null);
     const [deathMarkers, setDeathMarkers] = useState<DeathData[]>([]);
+    
+    // Sound Refs
+    const wingSfx = useRef<HTMLAudioElement>(null);
+    const hitSfx = useRef<HTMLAudioElement>(null);
+    const dieSfx = useRef<HTMLAudioElement>(null);
+
 
     const gameAssets = useRef<{ 
         avatarImage: HTMLImageElement | null;
@@ -84,6 +90,21 @@ export default function FlappyBirdPage() {
         frameCount: 0,
         worldOffset: 0,
     });
+    
+     const playSound = (sound: 'wing' | 'hit' | 'die') => {
+        let audioRef;
+        switch (sound) {
+            case 'wing': audioRef = wingSfx; break;
+            case 'hit': audioRef = hitSfx; break;
+            case 'die': audioRef = dieSfx; break;
+        }
+
+        if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(e => console.error(`Error playing ${sound} sound:`, e));
+        }
+    };
+
 
     const loadDeathMarkers = useCallback(async () => {
         try {
@@ -317,6 +338,7 @@ export default function FlappyBirdPage() {
     
     const jump = () => {
         if (!isGameOver && countdown === null) {
+            playSound('wing');
             gameVars.current.bird.velocity = gameVars.current.lift;
         }
     };
@@ -388,6 +410,10 @@ export default function FlappyBirdPage() {
     const endGame = () => {
         if (isGameOver) return;
         
+        playSound('hit');
+        // A short delay before the 'die' sound for better effect
+        setTimeout(() => playSound('die'), 200);
+        
         setIsGameOver(true);
         if(profile) {
             saveDeathPosition();
@@ -424,6 +450,11 @@ export default function FlappyBirdPage() {
 
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background text-foreground p-4">
+             {/* Audio Elements */}
+            <audio ref={wingSfx} src="/sounds/wing.mp3" preload="auto" />
+            <audio ref={hitSfx} src="/sounds/hit.mp3" preload="auto" />
+            <audio ref={dieSfx} src="/sounds/die.mp3" preload="auto" />
+
              <header className="absolute top-4 left-4 flex items-center gap-3">
                 <Button asChild variant="outline" size="icon" className="h-10 w-10">
                     <Link href="/gaming">
@@ -486,3 +517,4 @@ export default function FlappyBirdPage() {
         </div>
     );
 }
+
