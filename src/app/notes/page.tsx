@@ -152,32 +152,24 @@ export default function NotesPage() {
 
       if (addedChange) {
         const newNoteId = addedChange.doc.id;
-        // The newly added note might not be in userNotes immediately if there's a delay,
-        // so we find it from the snapshot directly.
         const noteToSelect = userNotes.find(n => n.id === newNoteId);
         if (noteToSelect) {
           setSelectedNote(noteToSelect);
         }
       } else if (selectedNote) {
-        // If a note is selected, check if it still exists.
         const updatedSelected = userNotes.find(n => n.id === selectedNote.id);
         if (updatedSelected) {
-          // If it exists, update its content if changed.
            if (JSON.stringify(updatedSelected) !== JSON.stringify(selectedNote)) {
               setSelectedNote(updatedSelected);
            }
         } else if (userNotes.length > 0) {
-          // If it doesn't exist (was deleted), select the first available note.
           setSelectedNote(userNotes[0]);
         } else {
-          // If no notes are left, clear the selection.
           setSelectedNote(null);
         }
       } else if (userNotes.length > 0) {
-        // If no note is selected, select the first one.
         setSelectedNote(userNotes[0]);
       } else {
-        // No notes and none selected.
         setSelectedNote(null);
       }
     }, (error) => {
@@ -199,7 +191,6 @@ export default function NotesPage() {
       updatedAt: serverTimestamp(),
     };
     await addDoc(newNoteRef, newNote);
-    // The useEffect will handle selecting the new note
   };
   
 
@@ -209,7 +200,6 @@ export default function NotesPage() {
 
   const handleDeleteNote = async (noteId: string) => {
     await deleteDoc(doc(db, 'notes', noteId));
-    // The useEffect will handle re-selecting a note if needed
   };
 
   return (
@@ -341,7 +331,6 @@ function Editor({ note }: { note: Note }) {
   };
 
   useEffect(() => {
-    // Update lastSaved state when the note's updatedAt timestamp changes from the server
     if (note.updatedAt) {
       setLastSaved(note.updatedAt.toDate());
     }
@@ -384,8 +373,6 @@ function Editor({ note }: { note: Note }) {
 }
 
 function PlateToolbar() {
-    const editor = useEditorRef();
-    
     return (
         <div className="flex items-center gap-1">
             <MarkToolbarButton tooltip="In đậm" nodeType={MARK_BOLD}>
@@ -417,7 +404,3 @@ function PlateToolbar() {
         </div>
     );
 }
-
-    
-
-    
