@@ -132,24 +132,32 @@ export default function NotesPage() {
     setLoadingNotes(true);
     const q = query(
       collection(db, 'notes'),
-      where('ownerId', '==', user.id),
-      orderBy('updatedAt', 'desc')
+      where('ownerId', '==', user.id)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userNotes = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Note)
       );
-      setNotes(userNotes);
+      
+      // Sort notes on the client side
+      const sortedNotes = userNotes.sort((a, b) => {
+        const timeA = a.updatedAt?.toMillis() || 0;
+        const timeB = b.updatedAt?.toMillis() || 0;
+        return timeB - timeA;
+      });
+
+      setNotes(sortedNotes);
       setLoadingNotes(false);
-      if (!selectedNote && userNotes.length > 0) {
-        setSelectedNote(userNotes[0]);
+
+      if (!selectedNote && sortedNotes.length > 0) {
+        setSelectedNote(sortedNotes[0]);
       } else if(selectedNote) {
-        const updatedSelected = userNotes.find(n => n.id === selectedNote.id);
+        const updatedSelected = sortedNotes.find(n => n.id === selectedNote.id);
         if (updatedSelected) {
             setSelectedNote(updatedSelected);
-        } else if (userNotes.length > 0) {
-            setSelectedNote(userNotes[0])
+        } else if (sortedNotes.length > 0) {
+            setSelectedNote(sortedNotes[0])
         } else {
             setSelectedNote(null);
         }
@@ -157,7 +165,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedNote]);
+  }, [user]);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -382,3 +390,6 @@ function PlateToolbar() {
         </div>
     );
 }
+
+
+    
