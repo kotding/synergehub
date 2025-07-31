@@ -36,13 +36,13 @@ import {
   usePlateEditorRef,
   usePlateEditorState,
   someNode,
-  getPluginOptions,
   getEditorString
 } from '@udecode/plate-common';
 import {
     createLinkPlugin,
     ELEMENT_LINK,
     upsertLink,
+    getPluginOptions
 } from '@udecode/plate-link';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -170,7 +170,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedNote]);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -272,13 +272,7 @@ export default function NotesPage() {
 
         <main className="flex-1 flex flex-col">
           {selectedNote ? (
-            <PlateProvider
-              key={selectedNote.id}
-              initialValue={selectedNote.content}
-              plugins={plugins}
-            >
-              <Editor note={selectedNote} />
-            </PlateProvider>
+            <Editor key={selectedNote.id} note={selectedNote} />
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
@@ -295,11 +289,12 @@ export default function NotesPage() {
 }
 
 function Editor({ note }: { note: Note }) {
-  const editor = usePlateEditorState();
   const [title, setTitle] = useState(note.title);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt.toDate());
 
+  const editor = useMemo(() => createPlateEditor({ plugins }), []);
+  
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
     const noteRef = doc(db, 'notes', note.id);
@@ -323,13 +318,11 @@ function Editor({ note }: { note: Note }) {
   };
   
   const handleContentChange = (newContent: any) => {
-    // The Plate component handles updating its internal state.
-    // We just need to trigger the save.
     debouncedSave(title, newContent);
   };
 
   return (
-    <PlateProvider editor={editor} initialValue={note.content} plugins={plugins} onChange={handleContentChange}>
+    <PlateProvider editor={editor} initialValue={note.content} onChange={handleContentChange}>
       <div className="p-4 border-b border-border flex items-center justify-between gap-4">
         <Input
           value={title}
@@ -411,3 +404,6 @@ function PlateToolbar() {
         </div>
     );
 }
+
+
+    

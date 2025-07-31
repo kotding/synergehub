@@ -5,11 +5,11 @@ import React from 'react';
 import {
   usePlateEditorRef,
   someNode,
-  getPluginOptions,
 } from '@udecode/plate-common';
 import {
   ELEMENT_LINK,
   upsertLink,
+  getPluginOptions,
 } from '@udecode/plate-link';
 import { useFocused, useSelected } from 'slate-react';
 import {
@@ -32,11 +32,11 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
 
   const render = (
     <Popover open={isLink && focused}>
-       <PopoverAnchor>
+       <PopoverTrigger asChild>
           <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
             {children}
           </Button>
-      </PopoverAnchor>
+      </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
         <div className="p-2">
           <Input
@@ -57,11 +57,13 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
       <Tooltip>
         <TooltipTrigger asChild>
             <Popover open={isLink && focused}>
-                <PopoverTrigger asChild>
-                    <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
-                        {children}
-                    </Button>
-                </PopoverTrigger>
+                <PopoverAnchor>
+                    <PopoverTrigger asChild>
+                        <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
+                            {children}
+                        </Button>
+                    </PopoverTrigger>
+                </PopoverAnchor>
                 <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                     <div className="p-2">
                     <Input
@@ -83,3 +85,5 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
 
   return render;
 }
+
+    
