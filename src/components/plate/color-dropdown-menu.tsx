@@ -4,7 +4,6 @@
 import React from 'react';
 import {
   useColorDropdownMenu,
-  useColorsCustom,
   TColor,
 } from '@udecode/plate-font';
 
@@ -14,7 +13,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -30,14 +28,11 @@ const colors: TColor[] = [
   { name: 'Purple', value: '#9C27B0', isBrightColor: false },
   { name: 'Red', value: '#F44336', isBrightColor: false },
   { name: 'Pink', value: '#E91E63', isBrightColor: false },
-];
-
-const customColors: TColor[] = [
-    { name: 'Teal', value: '#009688', isBrightColor: false },
-    { name: 'Cyan', value: '#00BCD4', isBrightColor: false },
-    { name: 'Lime', value: '#CDDC39', isBrightColor: false },
-    { name: 'Amber', value: '#FFC107', isBrightColor: false },
-    { name: 'Indigo', value: '#3F51B5', isBrightColor: false },
+  { name: 'Teal', value: '#009688', isBrightColor: false },
+  { name: 'Cyan', value: '#00BCD4', isBrightColor: false },
+  { name: 'Lime', value: '#CDDC39', isBrightColor: false },
+  { name: 'Amber', value: '#FFC107', isBrightColor: false },
+  { name: 'Indigo', value: '#3F51B5', isBrightColor: false },
 ];
 
 
@@ -60,15 +55,6 @@ export function ColorDropdownMenu({
     updateColor,
   } = useColorDropdownMenu({ nodeType, colors });
 
-  const {
-    customColors: customColorsState,
-    updateCustomColor,
-    clearCustomColors,
-  } = useColorsCustom({
-    nodeType,
-    colors: customColors,
-  });
-
 
   const render = (
     <Popover open={open} onOpenChange={setOpen}>
@@ -79,31 +65,6 @@ export function ColorDropdownMenu({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <div className="flex flex-col gap-4 p-4">
-          <div className="flex flex-col gap-2">
-             <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Tùy chỉnh</span>
-                <Button variant="ghost" size="sm" onClick={clearCustomColors}>Xóa</Button>
-             </div>
-             <div className="grid grid-cols-5 gap-2">
-                {customColorsState.map((colorOption) => (
-                  <Tooltip key={colorOption.name}>
-                      <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              'h-6 w-6 rounded-full border flex items-center justify-center',
-                               selectedColor === colorOption.value && 'ring-2 ring-ring'
-                            )}
-                            style={{ backgroundColor: colorOption.value ?? '' }}
-                            onClick={() => updateCustomColor(colorOption.value!)}
-                          />
-                      </TooltipTrigger>
-                      <TooltipContent>{colorOption.name}</TooltipContent>
-                  </Tooltip>
-                ))}
-             </div>
-          </div>
-          <Separator />
            <div className="grid grid-cols-5 gap-2">
             {colors.map((colorOption) => (
               <Tooltip key={colorOption.name}>
@@ -138,4 +99,3 @@ export function ColorDropdownMenu({
 
   return render;
 }
-
