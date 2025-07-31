@@ -47,6 +47,7 @@ interface DeathData {
     position: { x: number, y: number };
     avatar: string;
     score: number;
+    distance: number;
 }
 
 export default function FlappyBirdPage() {
@@ -87,7 +88,7 @@ export default function FlappyBirdPage() {
     const loadDeathMarkers = useCallback(async () => {
         try {
             const highScoresRef = collection(db, 'flappyBirdHighScores');
-            const topScoresQuery = query(highScoresRef, orderBy('score', 'desc'), limit(20));
+            const topScoresQuery = query(highScoresRef, orderBy('distance', 'desc'), limit(20));
             const topScoresSnapshot = await getDocs(topScoresQuery);
             const markers = topScoresSnapshot.docs.map(doc => doc.data() as DeathData);
             setDeathMarkers(markers);
@@ -338,20 +339,22 @@ export default function FlappyBirdPage() {
             const highScoreRef = doc(db, 'flappyBirdHighScores', profile.id);
             const docSnap = await getDoc(highScoreRef);
 
+            const distance = gameVars.current.worldOffset;
             const newHighScoreData = {
                 userId: profile.id,
                 nickname: profile.nickname,
                 avatar: profile.avatar,
                 score: score,
+                distance: distance,
                 position: {
-                    x: gameVars.current.bird.x + gameVars.current.worldOffset,
+                    x: gameVars.current.bird.x + distance,
                     y: gameVars.current.bird.y
                 },
             };
 
             if (docSnap.exists()) {
-                // Document exists, check if current score is higher
-                if (score > docSnap.data().score) {
+                // Document exists, check if current distance is greater
+                if (distance > (docSnap.data().distance || 0)) {
                     await setDoc(highScoreRef, newHighScoreData);
                 }
             } else {
@@ -462,5 +465,3 @@ export default function FlappyBirdPage() {
         </div>
     );
 }
-
-    
