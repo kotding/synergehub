@@ -81,8 +81,8 @@ export function ColorDropdownMenu({
         <div className="flex flex-col gap-4 p-4">
           <div className="flex flex-col gap-2">
              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Custom</span>
-                <Button variant="ghost" size="sm" onClick={clearCustomColors}>Clear</Button>
+                <span className="text-sm font-medium">Tùy chỉnh</span>
+                <Button variant="ghost" size="sm" onClick={clearCustomColors}>Xóa</Button>
              </div>
              <div className="grid grid-cols-5 gap-2">
                 {customColorsState.map((colorOption) => (
