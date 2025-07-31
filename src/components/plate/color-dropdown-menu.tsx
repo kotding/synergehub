@@ -53,34 +53,55 @@ export function ColorDropdownMenu({
   children,
 }: ColorDropdownMenuProps) {
   const {
-    getButtonProps,
     open,
     setOpen,
-  } = useColorDropdownMenu({ nodeType });
+    trigger,
+    selectedColor,
+    updateColor,
+  } = useColorDropdownMenu({ nodeType, colors });
 
   const {
-    colors: customColors,
-    updateColor,
+    customColors: customColorsState,
     updateCustomColor,
-  } = useColorsCustom({ nodeType });
+    clearCustomColors,
+  } = useColorsCustom({
+    nodeType,
+    colors: customColors,
+  });
+
 
   const render = (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" {...getButtonProps()} className="h-8 w-8 p-1">
+        <Button variant="ghost" size="icon" {...trigger} className="h-8 w-8 p-1">
           {children}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
         <div className="flex flex-col gap-4 p-4">
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">Custom</span>
-             <input
-                type="color"
-                value={customColors[0]?.value ?? '#000000'}
-                onChange={(e) => updateCustomColor(e.target.value)}
-                className="w-full h-8 p-0 border-none cursor-pointer"
-            />
+             <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Custom</span>
+                <Button variant="ghost" size="sm" onClick={clearCustomColors}>Clear</Button>
+             </div>
+             <div className="grid grid-cols-5 gap-2">
+                {customColorsState.map((colorOption) => (
+                  <Tooltip key={colorOption.name}>
+                      <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className={cn(
+                              'h-6 w-6 rounded-full border flex items-center justify-center',
+                               selectedColor === colorOption.value && 'ring-2 ring-ring'
+                            )}
+                            style={{ backgroundColor: colorOption.value ?? '' }}
+                            onClick={() => updateCustomColor(colorOption.value!)}
+                          />
+                      </TooltipTrigger>
+                      <TooltipContent>{colorOption.name}</TooltipContent>
+                  </Tooltip>
+                ))}
+             </div>
           </div>
           <Separator />
            <div className="grid grid-cols-5 gap-2">
@@ -91,9 +112,10 @@ export function ColorDropdownMenu({
                         type="button"
                         className={cn(
                           'h-6 w-6 rounded-full border flex items-center justify-center',
+                           selectedColor === colorOption.value && 'ring-2 ring-ring'
                         )}
                         style={{ backgroundColor: colorOption.value === 'default' ? 'transparent' : colorOption.value }}
-                        onClick={() => updateColor(colorOption.value)}
+                        onClick={() => updateColor(colorOption.value!)}
                       />
                   </TooltipTrigger>
                   <TooltipContent>{colorOption.name}</TooltipContent>
