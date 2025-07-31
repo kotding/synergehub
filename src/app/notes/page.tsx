@@ -169,7 +169,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedNote]);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -198,14 +198,14 @@ export default function NotesPage() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="flex h-screen bg-background text-foreground overflow-hidden">
-        <aside className="w-80 border-r border-border flex flex-col">
-          <div className="p-4 border-b border-border flex justify-between items-center">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <FileText />
-              Ghi chú của bạn
-            </h2>
-            <TooltipProvider>
+      <TooltipProvider>
+        <div className="flex h-screen bg-background text-foreground overflow-hidden">
+          <aside className="w-80 border-r border-border flex flex-col">
+            <div className="p-4 border-b border-border flex justify-between items-center">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <FileText />
+                Ghi chú của bạn
+              </h2>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button size="icon" variant="ghost" onClick={handleCreateNote}>
@@ -216,73 +216,73 @@ export default function NotesPage() {
                   <p>Tạo ghi chú mới</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-          </div>
-          <ScrollArea className="flex-1">
-            {loadingNotes ? (
-              <div className="p-4"><Loader2 className="animate-spin" /></div>
-            ) : (
-              <nav className="p-2">
-                {notes.map((note) => (
-                  <div key={note.id} className="relative group">
-                    <button
-                      onClick={() => handleSelectNote(note)}
-                      className={cn(
-                        'w-full text-left p-2 rounded-md truncate hover:bg-accent',
-                        selectedNote?.id === note.id && 'bg-accent'
-                      )}
-                    >
-                      {note.title}
-                    </button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Bạn có chắc chắn?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Hành động này không thể được hoàn tác. Điều này sẽ xóa vĩnh viễn ghi chú của bạn.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Hủy</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDeleteNote(note.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Xóa
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                ))}
-              </nav>
-            )}
-          </ScrollArea>
-        </aside>
-
-        <main className="flex-1 flex flex-col">
-          {selectedNote ? (
-            <Editor key={selectedNote.id} note={selectedNote} />
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <FileText className="mx-auto h-12 w-12" />
-                <h3 className="mt-4 text-lg font-medium">Không có ghi chú nào được chọn</h3>
-                <p className="mt-1 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới.</p>
-              </div>
             </div>
-          )}
-        </main>
-      </div>
+            <ScrollArea className="flex-1">
+              {loadingNotes ? (
+                <div className="p-4"><Loader2 className="animate-spin" /></div>
+              ) : (
+                <nav className="p-2">
+                  {notes.map((note) => (
+                    <div key={note.id} className="relative group">
+                      <button
+                        onClick={() => handleSelectNote(note)}
+                        className={cn(
+                          'w-full text-left p-2 rounded-md truncate hover:bg-accent',
+                          selectedNote?.id === note.id && 'bg-accent'
+                        )}
+                      >
+                        {note.title}
+                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Bạn có chắc chắn?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Hành động này không thể được hoàn tác. Điều này sẽ xóa vĩnh viễn ghi chú của bạn.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Hủy</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteNote(note.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Xóa
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))}
+                </nav>
+              )}
+            </ScrollArea>
+          </aside>
+
+          <main className="flex-1 flex flex-col">
+            {selectedNote ? (
+              <Editor key={selectedNote.id} note={selectedNote} />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <FileText className="mx-auto h-12 w-12" />
+                  <h3 className="mt-4 text-lg font-medium">Không có ghi chú nào được chọn</h3>
+                  <p className="mt-1 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới.</p>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      </TooltipProvider>
     </DndProvider>
   );
 }
