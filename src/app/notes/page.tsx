@@ -152,6 +152,8 @@ export default function NotesPage() {
 
       if (addedChange) {
         const newNoteId = addedChange.doc.id;
+        // The newly added note might not be in userNotes immediately if there's a delay,
+        // so we find it from the snapshot directly.
         const noteToSelect = userNotes.find(n => n.id === newNoteId);
         if (noteToSelect) {
           setSelectedNote(noteToSelect);
@@ -415,5 +417,7 @@ function PlateToolbar() {
         </div>
     );
 }
+
+    
 
     
