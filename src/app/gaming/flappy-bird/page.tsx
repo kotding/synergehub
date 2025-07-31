@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { ArrowLeft, Gamepad2, Play, RefreshCw, Ghost } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, orderBy, limit, getDocs, where, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, getDocs, where, doc, setDoc, getDoc, orderBy, limit } from 'firebase/firestore';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 const pipeSvg = (height: number, canvasHeight: number, pipeGap: number) => `
@@ -53,6 +53,10 @@ interface DeathData {
 export default function FlappyBirdPage() {
     const { profile } = useAuth();
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const wingSfxRef = useRef<HTMLAudioElement>(null);
+    const dieSfxRef = useRef<HTMLAudioElement>(null);
+    const hitSfxRef = useRef<HTMLAudioElement>(null);
+
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
     const [isGameOver, setIsGameOver] = useState(true);
@@ -83,6 +87,7 @@ export default function FlappyBirdPage() {
         pipeInterval: 120, // frames
         frameCount: 0,
         worldOffset: 0,
+        countdownActive: false,
     });
 
     const loadDeathMarkers = useCallback(async () => {
@@ -197,8 +202,7 @@ export default function FlappyBirdPage() {
                 context.globalAlpha = 0.4;
             }
             
-            // Check if avatar is valid and not a placeholder
-            const shouldUseAvatar = avatarImg && avatarImg.complete && !avatarImg.src.includes('placehold.co');
+            const shouldUseAvatar = avatarImg && avatarImg.complete && avatarImg.naturalHeight !== 0 && !avatarImg.src.includes('placehold.co');
             const imageToDraw = shouldUseAvatar ? avatarImg : defaultBirdImg;
 
             if (imageToDraw && imageToDraw.complete) {
@@ -208,8 +212,8 @@ export default function FlappyBirdPage() {
                     context.closePath();
                     context.clip();
                     context.drawImage(imageToDraw, birdX, birdY, birdW, birdH);
-                    context.restore(); // Restore to reset clip
-                    context.save(); // Save again for rotation and border
+                    context.restore(); 
+                    context.save(); 
                     context.translate(birdX + birdW / 2, birdY + birdH / 2);
                     context.rotate(rotation * Math.PI / 180);
                     context.translate(-(birdX + birdW / 2), -(birdY + birdH / 2));
@@ -240,9 +244,11 @@ export default function FlappyBirdPage() {
             // Death Markers (ghosts)
             deathMarkers.forEach(marker => {
                 const ghostAvatar = gameAssets.current.ghostImages[marker.userId];
+                const defaultGhost = gameAssets.current.defaultBirdImage;
                 const markerX = marker.position.x - gameVars.current.worldOffset;
                 if (markerX > -50 && markerX < canvas.width + 50) {
-                    drawPlayer(ctx, markerX, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, 0, ghostAvatar, gameAssets.current.defaultBirdImage, true);
+                    const shouldUseGhostAvatar = ghostAvatar && ghostAvatar.complete && ghostAvatar.naturalHeight !== 0 && !ghostAvatar.src.includes('placehold.co');
+                    drawPlayer(ctx, markerX, marker.position.y, gameVars.current.bird.width, gameVars.current.bird.height, 0, shouldUseGhostAvatar ? ghostAvatar : null, defaultGhost, true);
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
                     ctx.font = 'bold 10px sans-serif';
                     ctx.textAlign = 'center';
@@ -315,18 +321,33 @@ export default function FlappyBirdPage() {
         };
     }, [isGameOver, countdown, deathMarkers, profile, loadDeathMarkers]);
     
+    const playSound = (sound: 'wing' | 'hit' | 'die') => {
+        let audio;
+        switch(sound) {
+            case 'wing': audio = wingSfxRef.current; break;
+            case 'hit': audio = hitSfxRef.current; break;
+            case 'die': audio = dieSfxRef.current; break;
+        }
+        if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(e => console.error("Audio playback failed:", e));
+        }
+    };
+    
     const jump = () => {
         if (!isGameOver && countdown === null) {
             gameVars.current.bird.velocity = gameVars.current.lift;
+            playSound('wing');
         }
     };
     
     const triggerCountdown = () => {
-        if (countdown !== null) return; // Prevent restarting countdown
+        if (gameVars.current.countdownActive) return; 
         
+        gameVars.current.countdownActive = true;
         loadDeathMarkers();
         setGameStarted(true);
-        setIsGameOver(true); // Set to true to show countdown screen
+        setIsGameOver(true); 
         setCountdown(3);
         
         const timer = setInterval(() => {
@@ -342,6 +363,7 @@ export default function FlappyBirdPage() {
     };
 
     const startGame = () => {
+        gameVars.current.countdownActive = false;
         setIsGameOver(false);
         setCountdown(null);
         setScore(0);
@@ -359,6 +381,12 @@ export default function FlappyBirdPage() {
             const docSnap = await getDoc(highScoreRef);
 
             const distance = gameVars.current.worldOffset;
+            
+            if (docSnap.exists() && distance <= (docSnap.data().distance || 0)) {
+                // Current distance is not greater, no need to save
+                return;
+            }
+
             const newHighScoreData = {
                 userId: profile.id,
                 nickname: profile.nickname,
@@ -370,16 +398,9 @@ export default function FlappyBirdPage() {
                     y: gameVars.current.bird.y
                 },
             };
+            
+            await setDoc(highScoreRef, newHighScoreData, { merge: true });
 
-            if (docSnap.exists()) {
-                // Document exists, check if current distance is greater
-                if (distance > (docSnap.data().distance || 0)) {
-                    await setDoc(highScoreRef, newHighScoreData);
-                }
-            } else {
-                // Document doesn't exist, create it
-                await setDoc(highScoreRef, newHighScoreData);
-            }
         } catch (error) {
             console.error("Error saving high score position:", error);
         }
@@ -388,10 +409,14 @@ export default function FlappyBirdPage() {
     const endGame = () => {
         if (isGameOver) return;
         
+        playSound('hit');
+        setTimeout(() => playSound('die'), 300);
+
         setIsGameOver(true);
         if(profile) {
             saveDeathPosition();
         }
+
         if (score > highScore) {
             setHighScore(score);
             // Also save to localStorage for non-logged-in users or as a fallback
@@ -408,7 +433,7 @@ export default function FlappyBirdPage() {
 
     const handleClick = () => {
         if (isGameOver) {
-             if (countdown === null) { // Only trigger if no countdown is active
+             if (countdown === null && !gameVars.current.countdownActive) { 
                 triggerCountdown();
             }
         } else {
@@ -446,6 +471,11 @@ export default function FlappyBirdPage() {
                     )}
                  </div>
             </header>
+            
+            {/* Audio elements */}
+            <audio ref={wingSfxRef} src="/sounds/wing.mp3" preload="auto"></audio>
+            <audio ref={dieSfxRef} src="/sounds/die.mp3" preload="auto"></audio>
+            <audio ref={hitSfxRef} src="/sounds/hit.mp3" preload="auto"></audio>
 
             <div className="relative w-full max-w-sm aspect-[9/16] bg-black shadow-2xl rounded-lg overflow-hidden border-4 border-primary/20">
                 <canvas
