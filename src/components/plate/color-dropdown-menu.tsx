@@ -4,7 +4,6 @@
 import React from 'react';
 import {
   useEditorColor,
-  ColorInput,
   TColor,
   useColorDropdownMenuState,
 } from '@udecode/plate-font';
@@ -57,12 +56,15 @@ export function ColorDropdownMenu({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
             <div className="flex flex-col gap-4 p-4">
-              <ColorInput
-                value={selectedColor || color}
-                onChange={updateColor}
-              >
-                Custom
-              </ColorInput>
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium">Custom</span>
+                <input
+                    type="color"
+                    value={selectedColor || color || ''}
+                    onChange={(e) => updateColor(e.target.value)}
+                    className="w-full h-8 p-0 border-none cursor-pointer"
+                />
+              </div>
               <Separator />
                {colors.map((colorOption) => (
                   <button

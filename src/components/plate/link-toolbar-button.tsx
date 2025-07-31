@@ -6,9 +6,11 @@ import {
   usePlateEditorRef,
   someNode,
   getPluginOptions,
+} from '@udecode/plate-common';
+import {
   ELEMENT_LINK,
   upsertLink,
-} from '@udecode/plate-common';
+} from '@udecode/plate-link';
 import { useFocused, useSelected } from 'slate-react';
 import {
   Popover,
@@ -29,12 +31,12 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
   const isLink = !!editor?.selection && someNode(editor, { match: { type: nodeType } });
 
   const render = (
-    <Popover open={isLink && focused && selected}>
-      <PopoverTrigger asChild>
-        <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
-          {children}
-        </Button>
-      </PopoverTrigger>
+    <Popover open={isLink && focused}>
+       <PopoverAnchor>
+          <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
+            {children}
+          </Button>
+      </PopoverAnchor>
       <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
         <div className="p-2">
           <Input
@@ -53,7 +55,27 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
   if (tooltip) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{render}</TooltipTrigger>
+        <TooltipTrigger asChild>
+            <Popover open={isLink && focused}>
+                <PopoverTrigger asChild>
+                    <Button variant={isLink ? 'secondary' : 'ghost'} size="icon" className="h-8 w-8 p-1">
+                        {children}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                    <div className="p-2">
+                    <Input
+                        className="h-8"
+                        placeholder="Dán đường dẫn..."
+                        defaultValue={getPluginOptions(editor, nodeType).getLinkUrl?.(editor) ?? ''}
+                        onChange={(e) => {
+                        upsertLink(editor, { url: e.target.value });
+                        }}
+                    />
+                    </div>
+                </PopoverContent>
+            </Popover>
+        </TooltipTrigger>
         <TooltipContent>{tooltip}</TooltipContent>
       </Tooltip>
     );

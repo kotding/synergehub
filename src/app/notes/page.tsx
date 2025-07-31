@@ -37,14 +37,12 @@ import {
   usePlateEditorState,
   someNode,
   getPluginOptions,
-  ELEMENT_LINK,
-  upsertLink,
   getEditorString
 } from '@udecode/plate-common';
 import {
     createLinkPlugin,
-    floatingLinkActions,
-    FloatingLink,
+    ELEMENT_LINK,
+    upsertLink,
 } from '@udecode/plate-link';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -120,9 +118,7 @@ const plugins = createPlugins(
         createCodePlugin(),
         createFontColorPlugin(),
         createFontBackgroundColorPlugin(),
-        createLinkPlugin({
-            renderAfterEditable: FloatingLink,
-        }),
+        createLinkPlugin(),
     ],
     {
         // Plate components
