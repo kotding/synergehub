@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { useMarkToolbarButton, usePlateEditorRef } from '@udecode/plate-common';
+import { useMarkToolbarButton, useEditorRef } from '@udecode/plate-common';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
@@ -15,7 +15,7 @@ export function MarkToolbarButton({
   tooltip?: string;
   children: React.ReactNode;
 }) {
-  const editor = usePlateEditorRef();
+  const editor = useEditorRef();
   const { props } = useMarkToolbarButton({ nodeType });
 
   const render = (

@@ -3,12 +3,13 @@
 
 import React from 'react';
 import {
-  usePlateEditorRef,
+  useEditorRef,
   someNode,
 } from '@udecode/plate-common';
 import {
   ELEMENT_LINK,
   upsertLink,
+  getPluginOptions,
 } from '@udecode/plate-link';
 import { useFocused, useSelected } from 'slate-react';
 import {
@@ -22,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }) {
-  const editor = usePlateEditorRef();
+  const editor = useEditorRef();
   const focused = useFocused();
   const selected = useSelected();
   const isLink = !!editor?.selection && someNode(editor, { match: { type: nodeType } });
@@ -39,7 +40,7 @@ export function LinkToolbarButton({ nodeType = ELEMENT_LINK, tooltip, children }
             <Input
               className="h-8"
               placeholder="Dán đường dẫn..."
-              defaultValue={editor.getOptions(ELEMENT_LINK).getLinkUrl?.(editor) ?? ''}
+              defaultValue={getPluginOptions(editor, ELEMENT_LINK).getLinkUrl?.(editor) ?? ''}
               onChange={(e) => {
                 upsertLink(editor, { url: e.target.value });
               }}
