@@ -34,6 +34,8 @@ import {
   someNode,
   getEditorString,
   useEditorRef,
+  PlateContent,
+  TEditableProps,
 } from '@udecode/plate-common';
 import {
     createLinkPlugin,
@@ -145,13 +147,13 @@ export default function NotesPage() {
       setLoadingNotes(false);
 
       const docChanges = snapshot.docChanges();
-      const isNewNoteAdded = docChanges.some(change => change.type === 'added');
+      
+      const addedDocs = docChanges.filter(change => change.type === 'added');
 
-      if (isNewNoteAdded) {
+      if (addedDocs.length > 0) {
         // A new note was added, select it.
-        // It's usually the first one due to ordering by updatedAt desc
-        const newNoteId = docChanges.find(c => c.type === 'added')?.doc.id;
-        const noteToSelect = newNoteId ? userNotes.find(n => n.id === newNoteId) : userNotes[0];
+        const newNoteId = addedDocs[0].doc.id;
+        const noteToSelect = userNotes.find(n => n.id === newNoteId);
         if (noteToSelect) {
           setSelectedNote(noteToSelect);
         }
@@ -159,7 +161,7 @@ export default function NotesPage() {
         // If a note is selected, check if it still exists.
         const updatedSelected = userNotes.find(n => n.id === selectedNote.id);
         if (updatedSelected) {
-          // If it exists, update its content.
+          // If it exists, update its content if changed.
            if (JSON.stringify(updatedSelected) !== JSON.stringify(selectedNote)) {
               setSelectedNote(updatedSelected);
            }
@@ -300,12 +302,17 @@ export default function NotesPage() {
   );
 }
 
+const editableProps: TEditableProps = {
+    className: 'outline-none prose prose-neutral dark:prose-invert max-w-full p-8 flex-1',
+    autoFocus: true,
+};
+
 function Editor({ note }: { note: Note }) {
   const [title, setTitle] = useState(note.title);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
-  const editor = useMemo(() => createPlateEditor({ plugins }), []);
+  const editor = useMemo(() => createPlateEditor({ id: note.id, plugins }), [note.id]);
   
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
@@ -340,16 +347,12 @@ function Editor({ note }: { note: Note }) {
   }, [note.updatedAt]);
 
   return (
-      <div className="flex flex-col flex-1">
-        <Plate 
-            editor={editor} 
-            initialValue={note.content} 
-            onChange={handleContentChange}
-            editableProps={{
-                className: 'outline-none prose prose-neutral dark:prose-invert max-w-full p-8',
-                autoFocus: true,
-            }}
-        >
+    <Plate
+        editor={editor}
+        initialValue={note.content}
+        onChange={handleContentChange}
+    >
+        <div className="flex flex-col flex-1">
             <div className="p-4 border-b border-border flex items-center justify-between gap-4">
                 <Input
                 value={title}
@@ -373,9 +376,9 @@ function Editor({ note }: { note: Note }) {
             <div className="p-2 border-b border-border sticky top-0 bg-background z-10">
                 <PlateToolbar />
             </div>
-            {/* The editable area is now part of the Plate component via editableProps */}
-        </Plate>
-    </div>
+            <PlateContent {...editableProps}/>
+        </div>
+    </Plate>
   );
 }
 
@@ -413,6 +416,5 @@ function PlateToolbar() {
         </div>
     );
 }
-
 
     
