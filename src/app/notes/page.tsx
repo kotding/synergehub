@@ -141,14 +141,13 @@ export default function NotesPage() {
       const userNotes = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Note)
       );
-
       setNotes(userNotes);
       setLoadingNotes(false);
 
-      // Logic to select a note after changes
       const docChanges = snapshot.docChanges();
+      const isNewNoteAdded = docChanges.some(change => change.type === 'added');
 
-      if (docChanges.some(change => change.type === 'added')) {
+      if (isNewNoteAdded) {
         // A new note was added, select it.
         // It's usually the first one due to ordering by updatedAt desc
         const newNoteId = docChanges.find(c => c.type === 'added')?.doc.id;
@@ -161,7 +160,6 @@ export default function NotesPage() {
         const updatedSelected = userNotes.find(n => n.id === selectedNote.id);
         if (updatedSelected) {
           // If it exists, update its content.
-          // This prevents stale content if another client updated the note.
            if (JSON.stringify(updatedSelected) !== JSON.stringify(selectedNote)) {
               setSelectedNote(updatedSelected);
            }
@@ -189,15 +187,15 @@ export default function NotesPage() {
 
   const handleCreateNote = async () => {
     if (!user) return;
-    const newNoteRef = doc(collection(db, 'notes'));
-    const newNote: Omit<Note, 'id'> = {
+    const newNoteRef = collection(db, 'notes');
+    const newNote: Omit<Note, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
       title: 'Ghi chú không có tiêu đề',
       content: initialValue,
       ownerId: user.id,
-      createdAt: serverTimestamp() as Timestamp,
-      updatedAt: serverTimestamp() as Timestamp,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
-    await setDoc(newNoteRef, newNote);
+    await addDoc(newNoteRef, newNote);
     // The useEffect will handle selecting the new note
   };
   
@@ -343,7 +341,15 @@ function Editor({ note }: { note: Note }) {
 
   return (
       <div className="flex flex-col flex-1">
-        <Plate editor={editor} initialValue={note.content} onChange={handleContentChange}>
+        <Plate 
+            editor={editor} 
+            initialValue={note.content} 
+            onChange={handleContentChange}
+            editableProps={{
+                className: 'outline-none prose prose-neutral dark:prose-invert max-w-full p-8',
+                autoFocus: true,
+            }}
+        >
             <div className="p-4 border-b border-border flex items-center justify-between gap-4">
                 <Input
                 value={title}
@@ -367,16 +373,7 @@ function Editor({ note }: { note: Note }) {
             <div className="p-2 border-b border-border sticky top-0 bg-background z-10">
                 <PlateToolbar />
             </div>
-            <ScrollArea className="flex-1">
-                <div className="p-8">
-                    <Plate
-                        editableProps={{
-                            className: 'outline-none prose prose-neutral dark:prose-invert max-w-full',
-                            autoFocus: true,
-                        }}
-                    />
-                </div>
-            </ScrollArea>
+            {/* The editable area is now part of the Plate component via editableProps */}
         </Plate>
     </div>
   );
