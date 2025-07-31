@@ -53,7 +53,6 @@ interface DeathData {
 export default function FlappyBirdPage() {
     const { profile } = useAuth();
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
     const [score, setScore] = useState(0);
     const [highScore, setHighScore] = useState(0);
     const [isGameOver, setIsGameOver] = useState(true);
@@ -315,19 +314,10 @@ export default function FlappyBirdPage() {
             cancelAnimationFrame(animationFrameId);
         };
     }, [isGameOver, countdown, deathMarkers, profile, loadDeathMarkers]);
-
-    const playSound = (sound: 'wing' | 'hit' | 'die') => {
-        const audioElement = audioRefs.current[sound];
-        if (audioElement) {
-            audioElement.currentTime = 0;
-            audioElement.play().catch(e => console.error(`Error playing ${sound} sound:`, e));
-        }
-    };
     
     const jump = () => {
         if (!isGameOver && countdown === null) {
             gameVars.current.bird.velocity = gameVars.current.lift;
-            playSound('wing');
         }
     };
     
@@ -397,10 +387,7 @@ export default function FlappyBirdPage() {
 
     const endGame = () => {
         if (isGameOver) return;
-        playSound('hit');
-        // A short delay before the 'die' sound for better effect
-        setTimeout(() => playSound('die'), 200);
-
+        
         setIsGameOver(true);
         if(profile) {
             saveDeathPosition();
@@ -437,11 +424,6 @@ export default function FlappyBirdPage() {
 
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background text-foreground p-4">
-             {/* Audio Elements */}
-            <audio ref={el => audioRefs.current['wing'] = el} src="/sounds/wing.mp3" preload="auto" className="hidden"></audio>
-            <audio ref={el => audioRefs.current['hit'] = el} src="/sounds/hit.mp3" preload="auto" className="hidden"></audio>
-            <audio ref={el => audioRefs.current['die'] = el} src="/sounds/die.mp3" preload="auto" className="hidden"></audio>
-
              <header className="absolute top-4 left-4 flex items-center gap-3">
                 <Button asChild variant="outline" size="icon" className="h-10 w-10">
                     <Link href="/gaming">
@@ -503,7 +485,4 @@ export default function FlappyBirdPage() {
              <p className="text-muted-foreground mt-2">Nhấn phím cách hoặc nhấp chuột để bay.</p>
         </div>
     );
-
-    
-
-    
+}
