@@ -112,7 +112,7 @@ const plugins = createPlugins(
         createLinkPlugin(),
     ],
     {
-        // Plate components
+        components: {},
     }
 );
 
@@ -148,11 +148,10 @@ export default function NotesPage() {
 
       const docChanges = snapshot.docChanges();
       
-      const addedDocs = docChanges.filter(change => change.type === 'added');
+      const addedChange = docChanges.find(change => change.type === 'added');
 
-      if (addedDocs.length > 0) {
-        // A new note was added, select it.
-        const newNoteId = addedDocs[0].doc.id;
+      if (addedChange) {
+        const newNoteId = addedChange.doc.id;
         const noteToSelect = userNotes.find(n => n.id === newNoteId);
         if (noteToSelect) {
           setSelectedNote(noteToSelect);
