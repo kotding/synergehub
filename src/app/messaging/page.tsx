@@ -185,7 +185,8 @@ export default function MessagingPage() {
         // Play sound for new messages from others
         if (newMsgs.length > messages.length && messages.length > 0) {
             const lastMessage = newMsgs[newMsgs.length - 1];
-            if (lastMessage.senderId !== user?.id) {
+            if (lastMessage.senderId !== user?.id && audioRef.current) {
+                audioRef.current.volume = 1.0;
                 audioRef.current?.play().catch(e => console.log("Audio play failed:", e));
             }
         }
