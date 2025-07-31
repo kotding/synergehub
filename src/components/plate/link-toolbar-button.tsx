@@ -5,11 +5,11 @@ import React from 'react';
 import {
   useEditorRef,
   someNode,
+  getPluginOptions,
 } from '@udecode/plate-common';
 import {
   ELEMENT_LINK,
   upsertLink,
-  getPluginOptions,
 } from '@udecode/plate-link';
 import { useFocused, useSelected } from 'slate-react';
 import {
