@@ -31,16 +31,12 @@ import {
 import {
   Plate,
   createPlateEditor,
-  someNode,
-  getEditorString,
-  useEditorRef,
   PlateContent,
   TEditableProps,
 } from '@udecode/plate-common';
 import {
     createLinkPlugin,
     ELEMENT_LINK,
-    upsertLink,
 } from '@udecode/plate-link';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -303,7 +299,7 @@ function Editor({ note }: { note: Note }) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
-  const editor = useMemo(() => createPlateEditor({ id: note.id, plugins }), [note.id]);
+  const editor = useMemo(() => createPlateEditor({ plugins }), []);
   
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
@@ -404,3 +400,5 @@ function PlateToolbar() {
         </div>
     );
 }
+
+    
