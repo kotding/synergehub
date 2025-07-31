@@ -473,9 +473,9 @@ export default function FlappyBirdPage() {
             </header>
             
             {/* Audio elements */}
-            <audio ref={wingSfxRef} src="/sounds/wing.mp3" preload="auto"></audio>
-            <audio ref={dieSfxRef} src="/sounds/die.mp3" preload="auto"></audio>
-            <audio ref={hitSfxRef} src="/sounds/hit.mp3" preload="auto"></audio>
+            <audio ref={wingSfxRef} src="/sounds/wing.ogg" preload="auto"></audio>
+            <audio ref={dieSfxRef} src="/sounds/die.ogg" preload="auto"></audio>
+            <audio ref={hitSfxRef} src="/sounds/hit.ogg" preload="auto"></audio>
 
             <div className="relative w-full max-w-sm aspect-[9/16] bg-black shadow-2xl rounded-lg overflow-hidden border-4 border-primary/20">
                 <canvas
