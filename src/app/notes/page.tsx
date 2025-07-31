@@ -65,6 +65,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
     createBoldPlugin,
@@ -162,6 +163,9 @@ export default function NotesPage() {
             setSelectedNote(null);
         }
       }
+    }, (error) => {
+        console.error("Firestore snapshot error:", error);
+        setLoadingNotes(false);
     });
 
     return () => unsubscribe();
@@ -383,7 +387,7 @@ function PlateToolbar() {
             <ColorDropdownMenu nodeType="backgroundColor" tooltip="Màu nền">
                 <Palette className="h-4 w-4" />
             </ColorDropdownMenu>
-            <LinkToolbarButton tooltip="Link" nodeType={ELEMENT_LINK}>
+            <LinkToolbarButton tooltip="Link">
                 <LinkIcon />
             </LinkToolbarButton>
 
