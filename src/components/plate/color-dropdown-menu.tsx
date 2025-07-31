@@ -62,7 +62,7 @@ export function ColorDropdownMenu({
     colors: customColors,
     updateColor,
     updateCustomColor,
-  } = useColorsCustom();
+  } = useColorsCustom({ nodeType });
 
   const render = (
     <Popover open={open} onOpenChange={setOpen}>
