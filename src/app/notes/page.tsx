@@ -79,27 +79,14 @@ export default function NotesPage() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let justCreatedNoteId: string | null = null;
-      
       const userNotes = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Note)
       );
 
-      // Check if a note was just created to auto-select it
-      const latestNote = userNotes[0];
-      if(latestNote && latestNote.createdAt){
-        const fiveSecondsAgo = Timestamp.now().seconds - 5;
-        if(latestNote.createdAt.seconds > fiveSecondsAgo && (selectedNote?.id !== latestNote.id)){
-            justCreatedNoteId = latestNote.id;
-        }
-      }
-      
       setNotes(userNotes);
       setLoadingNotes(false);
       
-      if (justCreatedNoteId) {
-        setSelectedNote(userNotes.find(n => n.id === justCreatedNoteId) || null);
-      } else if (!selectedNote && userNotes.length > 0) {
+      if (!selectedNote && userNotes.length > 0) {
         setSelectedNote(userNotes[0]);
       } else if (selectedNote) {
         // If there's a selected note, check if it still exists in the list
@@ -134,7 +121,10 @@ export default function NotesPage() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
-    await addDoc(collection(db, 'notes'), newNoteData);
+    const newNoteRef = await addDoc(collection(db, 'notes'), newNoteData);
+    // Immediately select the new note
+    const newNote = { id: newNoteRef.id, ...newNoteData, createdAt: Timestamp.now(), updatedAt: Timestamp.now() } as Note;
+    handleSelectNote(newNote);
   };
   
 
@@ -143,6 +133,15 @@ export default function NotesPage() {
   };
 
   const handleDeleteNote = async (noteId: string) => {
+    // If the deleted note is the selected one, select the first note in the list after deletion
+    if (selectedNote?.id === noteId) {
+      const remainingNotes = notes.filter(n => n.id !== noteId);
+      if (remainingNotes.length > 0) {
+        setSelectedNote(remainingNotes[0]);
+      } else {
+        setSelectedNote(null);
+      }
+    }
     await deleteDoc(doc(db, 'notes', noteId));
   };
   
@@ -190,7 +189,7 @@ export default function NotesPage() {
                           'w-full text-left p-3 rounded-lg transition-colors border-2',
                           selectedNote?.id === note.id 
                             ? 'bg-cyan-950/80 border-cyan-500' 
-                            : 'bg-transparent border-transparent hover:bg-accent'
+                            : 'bg-transparent border-transparent hover:bg-cyan-950/30'
                         )}
                       >
                        <h3 className="font-semibold truncate">{note.title}</h3>
