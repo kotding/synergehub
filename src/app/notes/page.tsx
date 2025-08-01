@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   collection,
   deleteDoc,
@@ -22,6 +22,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useDebouncedCallback } from 'use-debounce';
+import { formatDistanceToNow } from 'date-fns';
+import { vi } from 'date-fns/locale';
 
 import { useAuth } from '@/hooks/use-auth';
 import { db } from '@/lib/firebase';
@@ -52,7 +54,7 @@ import { Textarea } from '@/components/ui/textarea';
 type Note = {
   id: string;
   title: string;
-  content: string; // Changed from 'any' to 'string'
+  content: string;
   ownerId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -74,19 +76,31 @@ export default function NotesPage() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      let justCreatedNoteId: string | null = null;
+      snapshot.docChanges().forEach(change => {
+        if(change.type === 'added') {
+          const addedNote = change.doc.data() as Note;
+          const fiveSecondsAgo = Timestamp.now().seconds - 5;
+          if (addedNote.createdAt && addedNote.createdAt.seconds > fiveSecondsAgo) {
+            justCreatedNoteId = change.doc.id;
+          }
+        }
+      });
+      
       const userNotes = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Note)
       );
       setNotes(userNotes);
       setLoadingNotes(false);
-
-      if (userNotes.length > 0) {
-        // If there's no selected note, or the selected note was deleted, select the first one.
+      
+      if (justCreatedNoteId) {
+        const newNote = userNotes.find(n => n.id === justCreatedNoteId);
+        setSelectedNote(newNote || null);
+      } else if (userNotes.length > 0) {
         const currentSelectedExists = userNotes.some(n => n.id === selectedNote?.id);
         if (!selectedNote || !currentSelectedExists) {
           setSelectedNote(userNotes[0]);
         } else {
-            // If the selected note still exists, update its content from the snapshot
             const updatedNote = userNotes.find(n => n.id === selectedNote.id);
             if (updatedNote) {
                 setSelectedNote(updatedNote);
@@ -102,19 +116,18 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedNote?.id]);
 
   const handleCreateNote = async () => {
     if (!user) return;
-    const newNoteData: Omit<Note, 'id'> = {
+    const newNoteData = {
       title: 'Ghi chú không có tiêu đề',
       content: 'Bắt đầu viết...',
       ownerId: user.id,
-      createdAt: serverTimestamp() as Timestamp,
-      updatedAt: serverTimestamp() as Timestamp,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
-    const newNoteRef = await addDoc(collection(db, 'notes'), newNoteData);
-    // Firestore listener will pick up the new note and update the state
+    await addDoc(collection(db, 'notes'), newNoteData);
   };
   
 
@@ -125,15 +138,25 @@ export default function NotesPage() {
   const handleDeleteNote = async (noteId: string) => {
     await deleteDoc(doc(db, 'notes', noteId));
   };
+  
+  const getNoteSnippet = (content: string) => {
+    const plainText = content.replace(/<\/?[^>]+(>|$)/g, "");
+    return plainText.length > 60 ? plainText.substring(0, 60) + '...' : plainText;
+  }
+  
+  const formatLastUpdated = (timestamp: Timestamp | null) => {
+      if (!timestamp) return '';
+      return formatDistanceToNow(timestamp.toDate(), { addSuffix: true, locale: vi });
+  }
 
   return (
     <TooltipProvider>
       <div className="flex h-screen bg-background text-foreground overflow-hidden">
-        <aside className="w-80 border-r border-border flex flex-col">
+        <aside className="w-80 border-r border-border flex flex-col bg-card/50">
           <div className="p-4 border-b border-border flex justify-between items-center">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <FileText />
-              Ghi chú của bạn
+              Ghi chú
             </h2>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -148,26 +171,32 @@ export default function NotesPage() {
           </div>
           <ScrollArea className="flex-1">
             {loadingNotes ? (
-              <div className="p-4"><Loader2 className="animate-spin" /></div>
+              <div className="p-4 flex justify-center"><Loader2 className="animate-spin" /></div>
             ) : (
-              <nav className="p-2">
+              <nav className="p-2 space-y-1">
                 {notes.map((note) => (
-                  <div key={note.id} className="relative group">
-                    <button
-                      onClick={() => handleSelectNote(note)}
-                      className={cn(
-                        'w-full text-left p-2 rounded-md truncate hover:bg-accent',
-                        selectedNote?.id === note.id && 'bg-accent'
-                      )}
-                    >
-                      {note.title}
-                    </button>
+                  <div key={note.id} className="relative group/item">
+                     <button
+                        onClick={() => handleSelectNote(note)}
+                        className={cn(
+                          'w-full text-left p-3 rounded-lg transition-colors border-2',
+                          selectedNote?.id === note.id 
+                            ? 'bg-accent border-primary/50' 
+                            : 'bg-transparent border-transparent hover:bg-accent hover:border-accent'
+                        )}
+                      >
+                       <h3 className="font-semibold truncate">{note.title}</h3>
+                       <p className="text-xs text-muted-foreground truncate mt-1">
+                          {note.content ? getNoteSnippet(note.content) : 'Chưa có nội dung'}
+                       </p>
+                       <p className="text-xs text-muted-foreground/80 mt-2">{formatLastUpdated(note.updatedAt)}</p>
+                      </button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100"
+                          className="absolute right-2 top-2 h-7 w-7 opacity-0 group-hover/item:opacity-100"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -203,9 +232,9 @@ export default function NotesPage() {
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
-                <FileText className="mx-auto h-12 w-12" />
-                <h3 className="mt-4 text-lg font-medium">Không có ghi chú nào được chọn</h3>
-                <p className="mt-1 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới.</p>
+                <FileText className="mx-auto h-16 w-16 opacity-50" />
+                <h3 className="mt-4 text-xl font-medium">Không có ghi chú nào được chọn</h3>
+                <p className="mt-2 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới để bắt đầu.</p>
               </div>
             </div>
           )}
@@ -257,13 +286,13 @@ function Editor({ note }: { note: Note }) {
   }, [note]);
 
   return (
-    <div className="flex flex-col flex-1">
+    <div className="flex flex-col flex-1 h-full">
         <div className="p-4 border-b border-border flex items-center justify-between gap-4">
             <Input
               value={title}
               onChange={handleTitleChange}
               placeholder="Tiêu đề ghi chú"
-              className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto"
+              className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto bg-transparent"
             />
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {isSaving ? (
@@ -273,7 +302,7 @@ function Editor({ note }: { note: Note }) {
                   </>
               ) : (
                   <span>
-                  Đã lưu lúc {lastSaved.toLocaleTimeString()}
+                  Đã lưu lúc {lastSaved.toLocaleTimeString('vi-VN')}
                   </span>
               )}
             </div>
@@ -282,9 +311,11 @@ function Editor({ note }: { note: Note }) {
           value={content}
           onChange={handleContentChange}
           placeholder="Viết điều gì đó..."
-          className="flex-1 w-full h-full p-8 text-base resize-none border-none focus-visible:ring-0"
+          className="flex-1 w-full h-full p-8 text-base resize-none border-none focus-visible:ring-0 bg-transparent"
           autoFocus
         />
     </div>
   );
 }
+
+    
