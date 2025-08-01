@@ -67,7 +67,10 @@ export default function NotesPage() {
   const [loadingNotes, setLoadingNotes] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+        setLoadingNotes(false);
+        return;
+    };
     setLoadingNotes(true);
     const q = query(
       collection(db, 'notes'),
@@ -77,37 +80,41 @@ export default function NotesPage() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let justCreatedNoteId: string | null = null;
-      snapshot.docChanges().forEach(change => {
-        if(change.type === 'added') {
-          const addedNote = change.doc.data() as Note;
-          const fiveSecondsAgo = Timestamp.now().seconds - 5;
-          if (addedNote.createdAt && addedNote.createdAt.seconds > fiveSecondsAgo) {
-            justCreatedNoteId = change.doc.id;
-          }
-        }
-      });
       
       const userNotes = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Note)
       );
+
+      // Check if a note was just created to auto-select it
+      const latestNote = userNotes[0];
+      if(latestNote && latestNote.createdAt){
+        const fiveSecondsAgo = Timestamp.now().seconds - 5;
+        if(latestNote.createdAt.seconds > fiveSecondsAgo && (selectedNote?.id !== latestNote.id)){
+            justCreatedNoteId = latestNote.id;
+        }
+      }
+      
       setNotes(userNotes);
       setLoadingNotes(false);
       
       if (justCreatedNoteId) {
-        const newNote = userNotes.find(n => n.id === justCreatedNoteId);
-        setSelectedNote(newNote || null);
-      } else if (userNotes.length > 0) {
-        const currentSelectedExists = userNotes.some(n => n.id === selectedNote?.id);
-        if (!selectedNote || !currentSelectedExists) {
-          setSelectedNote(userNotes[0]);
+        setSelectedNote(userNotes.find(n => n.id === justCreatedNoteId) || null);
+      } else if (!selectedNote && userNotes.length > 0) {
+        setSelectedNote(userNotes[0]);
+      } else if (selectedNote) {
+        // If there's a selected note, check if it still exists in the list
+        const currentSelectedExists = userNotes.some(n => n.id === selectedNote.id);
+        if(!currentSelectedExists && userNotes.length > 0) {
+            setSelectedNote(userNotes[0]); // select first one if current is deleted
+        } else if (!currentSelectedExists && userNotes.length === 0) {
+            setSelectedNote(null);
         } else {
-            const updatedNote = userNotes.find(n => n.id === selectedNote.id);
-            if (updatedNote) {
+            // Update the selected note with fresh data
+             const updatedNote = userNotes.find(n => n.id === selectedNote.id);
+             if (updatedNote) {
                 setSelectedNote(updatedNote);
-            }
+             }
         }
-      } else {
-        setSelectedNote(null);
       }
 
     }, (error) => {
@@ -116,7 +123,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedNote]);
+  }, [user]);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -140,6 +147,7 @@ export default function NotesPage() {
   };
   
   const getNoteSnippet = (content: string) => {
+    if (!content) return 'Chưa có nội dung';
     const plainText = content.replace(/<\/?[^>]+(>|$)/g, "");
     return plainText.length > 60 ? plainText.substring(0, 60) + '...' : plainText;
   }
@@ -187,7 +195,7 @@ export default function NotesPage() {
                       >
                        <h3 className="font-semibold truncate">{note.title}</h3>
                        <p className="text-xs text-muted-foreground truncate mt-1">
-                          {note.content ? getNoteSnippet(note.content) : 'Chưa có nội dung'}
+                          {getNoteSnippet(note.content)}
                        </p>
                        <p className="text-xs text-muted-foreground/80 mt-2">{formatLastUpdated(note.updatedAt)}</p>
                       </button>
@@ -230,11 +238,17 @@ export default function NotesPage() {
           {selectedNote ? (
             <Editor key={selectedNote.id} note={selectedNote} />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+             <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <FileText className="mx-auto h-16 w-16 opacity-50" />
-                <h3 className="mt-4 text-xl font-medium">Không có ghi chú nào được chọn</h3>
-                <p className="mt-2 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới để bắt đầu.</p>
+                 {loadingNotes ? (
+                     <h3 className="mt-4 text-xl font-medium">Đang tải ghi chú...</h3>
+                 ) : (
+                    <>
+                        <h3 className="mt-4 text-xl font-medium">Không có ghi chú nào</h3>
+                        <p className="mt-2 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới để bắt đầu.</p>
+                    </>
+                 )}
               </div>
             </div>
           )}
