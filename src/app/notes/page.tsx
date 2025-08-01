@@ -77,14 +77,13 @@ import {
     MARK_STRIKETHROUGH,
     MARK_CODE,
 } from '@udecode/plate-basic-marks';
-import { createPlugins } from '@udecode/plate-common';
-import { MarkToolbarButton } from '@/components/plate/mark-toolbar-button';
-import { ColorDropdownMenu } from '@/components/plate/color-dropdown-menu';
 import {
     createFontColorPlugin,
     createFontBackgroundColorPlugin,
 } from '@udecode/plate-font';
 import { LinkToolbarButton } from '@/components/plate/link-toolbar-button';
+import { MarkToolbarButton } from '@/components/plate/mark-toolbar-button';
+import { ColorDropdownMenu } from '@/components/plate/color-dropdown-menu';
 
 
 type Note = {
@@ -95,22 +94,6 @@ type Note = {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
-
-const plugins = createPlugins(
-    [
-        createBoldPlugin(),
-        createItalicPlugin(),
-        createUnderlinePlugin(),
-        createStrikethroughPlugin(),
-        createCodePlugin(),
-        createFontColorPlugin(),
-        createFontBackgroundColorPlugin(),
-        createLinkPlugin(),
-    ],
-    {
-        components: {},
-    }
-);
 
 const initialValue = [
   {
@@ -272,7 +255,7 @@ export default function NotesPage() {
 
           <main className="flex-1 flex flex-col">
             {selectedNote ? (
-              <Editor note={selectedNote} />
+              <Editor key={selectedNote.id} note={selectedNote} />
             ) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
@@ -294,7 +277,18 @@ function Editor({ note }: { note: Note }) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
-  const editor = useMemo(() => createPlateEditor({ plugins }), [note.id]);
+  const editor = useMemo(() => createPlateEditor({
+      plugins: [
+            createBoldPlugin(),
+            createItalicPlugin(),
+            createUnderlinePlugin(),
+            createStrikethroughPlugin(),
+            createCodePlugin(),
+            createFontColorPlugin(),
+            createFontBackgroundColorPlugin(),
+            createLinkPlugin(),
+      ]
+  }), []);
   
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
@@ -322,10 +316,14 @@ function Editor({ note }: { note: Note }) {
   };
 
   useEffect(() => {
+    setTitle(note.title);
+    if(note.content){
+      editor.children = note.content;
+    }
     if (note.updatedAt) {
       setLastSaved(note.updatedAt.toDate());
     }
-  }, [note.updatedAt]);
+  }, [note, editor]);
 
   return (
     <div className="flex flex-col flex-1">
@@ -399,7 +397,5 @@ function PlateToolbar() {
         </div>
     );
 }
-
-    
 
     
