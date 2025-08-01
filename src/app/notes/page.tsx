@@ -116,7 +116,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedNote]);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -181,8 +181,8 @@ export default function NotesPage() {
                         className={cn(
                           'w-full text-left p-3 rounded-lg transition-colors border-2',
                           selectedNote?.id === note.id 
-                            ? 'bg-accent border-primary/50' 
-                            : 'bg-transparent border-transparent hover:bg-accent hover:border-accent'
+                            ? 'bg-cyan-950/80 border-cyan-500' 
+                            : 'bg-transparent border-transparent hover:bg-accent'
                         )}
                       >
                        <h3 className="font-semibold truncate">{note.title}</h3>
@@ -317,5 +317,4 @@ function Editor({ note }: { note: Note }) {
     </div>
   );
 }
-
     
