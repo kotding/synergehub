@@ -116,7 +116,7 @@ export default function NotesPage() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedNote?.id]);
+  }, [user]);
 
   const handleCreateNote = async () => {
     if (!user) return;
