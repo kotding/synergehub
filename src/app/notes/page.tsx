@@ -272,7 +272,7 @@ export default function NotesPage() {
 
           <main className="flex-1 flex flex-col">
             {selectedNote ? (
-              <Editor key={selectedNote.id} note={selectedNote} />
+              <Editor note={selectedNote} />
             ) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
@@ -294,7 +294,7 @@ function Editor({ note }: { note: Note }) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
-  const editor = useMemo(() => createPlateEditor<any>({ plugins }), []);
+  const editor = useMemo(() => createPlateEditor({ plugins }), [note.id]);
   
   const debouncedSave = useDebouncedCallback(async (newTitle: string, newContent: any) => {
     setIsSaving(true);
@@ -328,32 +328,32 @@ function Editor({ note }: { note: Note }) {
   }, [note.updatedAt]);
 
   return (
-    <Plate
-        editor={editor}
-        initialValue={note.content}
-        onChange={handleContentChange}
-    >
-        <div className="flex flex-col flex-1">
-            <div className="p-4 border-b border-border flex items-center justify-between gap-4">
-                <Input
-                value={title}
-                onChange={handleTitleChange}
-                placeholder="Tiêu đề ghi chú"
-                className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto"
-                />
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {isSaving ? (
-                    <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Đang lưu...</span>
-                    </>
-                ) : (
-                    <span>
-                    Đã lưu lúc {lastSaved.toLocaleTimeString()}
-                    </span>
-                )}
-                </div>
+    <div className="flex flex-col flex-1">
+        <div className="p-4 border-b border-border flex items-center justify-between gap-4">
+            <Input
+            value={title}
+            onChange={handleTitleChange}
+            placeholder="Tiêu đề ghi chú"
+            className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto"
+            />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {isSaving ? (
+                <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Đang lưu...</span>
+                </>
+            ) : (
+                <span>
+                Đã lưu lúc {lastSaved.toLocaleTimeString()}
+                </span>
+            )}
             </div>
+        </div>
+        <Plate
+            editor={editor}
+            initialValue={note.content}
+            onChange={handleContentChange}
+        >
             <div className="p-2 border-b border-border sticky top-0 bg-background z-10">
                 <PlateToolbar />
             </div>
@@ -362,8 +362,8 @@ function Editor({ note }: { note: Note }) {
               autoFocus
               readOnly={false}
             />
-        </div>
-    </Plate>
+        </Plate>
+    </div>
   );
 }
 
