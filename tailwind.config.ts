@@ -1,3 +1,4 @@
+
 import type {Config} from 'tailwindcss';
 
 export default {
@@ -98,11 +99,16 @@ export default {
             'background-position': 'right center',
           },
         },
+        'stars': {
+          'from': { 'background-position': '0 0' },
+          'to': { 'background-position': '-10000px 5000px' },
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'gradient-xy': 'gradient-xy 6s ease infinite',
+        'stars': 'stars 200s linear infinite',
       },
     },
   },

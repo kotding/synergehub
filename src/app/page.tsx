@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -38,7 +39,8 @@ export default function Home() {
             </Button>
           </>
       </div>
-      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(hsl(var(--primary)/0.1)_1px,transparent_1px)] [background-size:24px_24px]"></div>
+      <div className="absolute inset-0 -z-10 h-full w-full animate-stars bg-repeat [background-image:radial-gradient(1px_1px_at_25px_5px,white,transparent),radial-gradient(1px_1px_at_50px_25px,white,transparent),radial-gradient(1px_1px_at_75px_75px,white,transparent),radial-gradient(1px_1px_at_100px_120px,white,transparent),radial-gradient(1px_1px_at_150px_90px,white,transparent)] [background-size:200px_200px]"></div>
+
       <div className="text-center mb-12 z-10">
         <h1 className="font-headline text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-primary via-accent to-primary animate-gradient-xy">
           Synergy Hub
