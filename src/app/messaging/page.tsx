@@ -74,6 +74,8 @@ export default function MessagingPage() {
   const [viewingProfile, setViewingProfile] = useState<User | null>(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [newGroup, setNewGroup] = useState({ name: '', avatarFile: null as string | null, avatarPreview: "https://placehold.co/128x128.png", members: new Set<string>() });
+  const [isSearchingUser, setIsSearchingUser] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +91,11 @@ export default function MessagingPage() {
       return timeB - timeA;
     });
   }, [chats]);
+  
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery) return [];
+    return users.filter(u => u.nickname.toLowerCase().includes(searchQuery.toLowerCase()) || u.username.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [searchQuery, users]);
 
   // Fetch all users once
   useEffect(() => {
@@ -228,6 +235,8 @@ export default function MessagingPage() {
             toast({ variant: "destructive", title: "Lỗi", description: "Không thể bắt đầu cuộc trò chuyện." });
         }
     }
+    setIsSearchingUser(false);
+    setSearchQuery('');
   };
 
   const handleSendMessage = async () => {
@@ -475,13 +484,18 @@ export default function MessagingPage() {
       <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Sidebar - Chat List */}
         <aside className={`flex flex-col w-full md:w-1/3 lg:w-1/4 bg-card border-r border-border transition-transform duration-300 ease-in-out ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-4 border-b border-border flex justify-between items-center">
+          <div className="p-4 border-b border-border flex justify-between items-center gap-2">
             <h2 className="text-xl font-bold flex items-center"><Users className="mr-2" /> Trò chuyện</h2>
-             {profile?.role === 'admin' && (
-              <Button size="sm" variant="ghost" onClick={() => setIsCreatingGroup(true)} >
-                  <PlusCircle className="mr-2 h-4 w-4"/> Tạo nhóm
-              </Button>
-             )}
+             <div className="flex items-center gap-1">
+                <Button size="icon" variant="ghost" onClick={() => setIsSearchingUser(true)} title="Tìm người dùng mới">
+                    <Search className="h-5 w-5"/>
+                </Button>
+                 {profile?.role === 'admin' && (
+                  <Button size="icon" variant="ghost" onClick={() => setIsCreatingGroup(true)} title="Tạo nhóm mới" >
+                      <PlusCircle className="h-5 w-5"/>
+                  </Button>
+                 )}
+             </div>
           </div>
           <ScrollArea className="flex-1">
             {loadingChats ? (
@@ -674,7 +688,7 @@ export default function MessagingPage() {
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground bg-background/50">
               <MessageCircle className="w-16 h-16 mb-4" />
               <h2 className="text-2xl font-semibold">Bắt đầu trò chuyện</h2>
-              <p className="max-w-xs mt-2">Chọn một người hoặc một nhóm để xem tin nhắn.</p>
+              <p className="max-w-xs mt-2">Chọn một người hoặc một nhóm để xem tin nhắn, hoặc tìm một người mới.</p>
             </div>
           )}
         </main>
@@ -734,6 +748,53 @@ export default function MessagingPage() {
           </DialogContent>
         </Dialog>
       )}
+      
+       {/* Search User Dialog */}
+       <Dialog open={isSearchingUser} onOpenChange={setIsSearchingUser}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Tìm người dùng</DialogTitle>
+                    <DialogDescription>Tìm kiếm người dùng khác để bắt đầu trò chuyện.</DialogDescription>
+                </DialogHeader>
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                        type="search"
+                        placeholder="Tìm theo nickname hoặc username..."
+                        className="pl-10"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        autoFocus
+                    />
+                </div>
+                <ScrollArea className="h-64 mt-4">
+                    {filteredUsers.length > 0 ? (
+                        <div className="space-y-2 pr-4">
+                            {filteredUsers.map(u => (
+                                <button
+                                    key={u.id}
+                                    className="w-full text-left flex items-center p-2 rounded-lg transition-colors hover:bg-accent"
+                                    onClick={() => handleUserSelect(u)}
+                                >
+                                    <Avatar className="w-10 h-10 mr-3">
+                                        <AvatarImage src={u.avatar} />
+                                        <AvatarFallback>{getAvatarFallback(u.nickname)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 truncate">
+                                        <p className="font-medium">{u.nickname}</p>
+                                        <p className="text-sm text-muted-foreground">@{u.username}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    ) : searchQuery ? (
+                         <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-full py-10">
+                            <p>Không tìm thấy người dùng.</p>
+                         </div>
+                    ) : null}
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
 
       {/* Create Group Dialog */}
        <Dialog open={isCreatingGroup} onOpenChange={setIsCreatingGroup}>
@@ -790,5 +851,7 @@ export default function MessagingPage() {
     </>
   );
 }
+
+    
 
     
