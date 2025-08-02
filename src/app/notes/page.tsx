@@ -54,7 +54,7 @@ import { Textarea } from '@/components/ui/textarea';
 type Note = {
   id: string;
   title: string;
-  content: string;
+  content: string | object; // Can be string or old Plate object
   ownerId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -145,10 +145,12 @@ export default function NotesPage() {
     await deleteDoc(doc(db, 'notes', noteId));
   };
   
-  const getNoteSnippet = (content: string) => {
+  const getNoteSnippet = (content: string | object) => {
     if (!content) return 'Chưa có nội dung';
-    const plainText = content.replace(/<\/?[^>]+(>|$)/g, "");
-    return plainText.length > 60 ? plainText.substring(0, 60) + '...' : plainText;
+    if (typeof content !== 'string') {
+        return '[Nội dung phức tạp]';
+    }
+    return content.length > 60 ? content.substring(0, 60) + '...' : content;
   }
   
   const formatLastUpdated = (timestamp: Timestamp | null) => {
@@ -242,10 +244,12 @@ export default function NotesPage() {
                 <FileText className="mx-auto h-16 w-16 opacity-50" />
                  {loadingNotes ? (
                      <h3 className="mt-4 text-xl font-medium">Đang tải ghi chú...</h3>
+                 ) : notes.length > 0 ? (
+                    <h3 className="mt-4 text-xl font-medium">Chọn một ghi chú để bắt đầu</h3>
                  ) : (
                     <>
                         <h3 className="mt-4 text-xl font-medium">Không có ghi chú nào</h3>
-                        <p className="mt-2 text-sm">Chọn một ghi chú từ danh sách hoặc tạo một ghi chú mới để bắt đầu.</p>
+                        <p className="mt-2 text-sm">Tạo ghi chú mới để bắt đầu.</p>
                     </>
                  )}
               </div>
@@ -258,8 +262,9 @@ export default function NotesPage() {
 }
 
 function Editor({ note }: { note: Note }) {
+  const isOldNoteFormat = typeof note.content !== 'string';
   const [title, setTitle] = useState(note.title);
-  const [content, setContent] = useState(note.content);
+  const [content, setContent] = useState(isOldNoteFormat ? '' : note.content as string);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(note.updatedAt ? note.updatedAt.toDate() : new Date());
 
@@ -281,18 +286,23 @@ function Editor({ note }: { note: Note }) {
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
-    debouncedSave({ newTitle, newContent: content });
+    if (!isOldNoteFormat) {
+      debouncedSave({ newTitle, newContent: content });
+    }
   };
   
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const newContent = e.target.value;
       setContent(newContent);
-      debouncedSave({ newTitle: title, newContent });
+      if (!isOldNoteFormat) {
+        debouncedSave({ newTitle: title, newContent });
+      }
   };
 
   useEffect(() => {
     setTitle(note.title);
-    setContent(note.content);
+    const newContent = typeof note.content === 'string' ? note.content : '';
+    setContent(newContent);
     if (note.updatedAt) {
       setLastSaved(note.updatedAt.toDate());
     }
@@ -306,6 +316,7 @@ function Editor({ note }: { note: Note }) {
               onChange={handleTitleChange}
               placeholder="Tiêu đề ghi chú"
               className="text-2xl font-bold border-none shadow-none focus-visible:ring-0 p-0 h-auto bg-transparent"
+              readOnly={isOldNoteFormat}
             />
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {isSaving ? (
@@ -320,14 +331,23 @@ function Editor({ note }: { note: Note }) {
               )}
             </div>
         </div>
-        <Textarea
-          value={content}
-          onChange={handleContentChange}
-          placeholder="Viết điều gì đó..."
-          className="flex-1 w-full h-full p-8 text-base resize-none border-none focus-visible:ring-0 bg-transparent"
-          autoFocus
-        />
+        {isOldNoteFormat ? (
+            <div className="p-8 text-muted-foreground">
+                <p className="font-semibold">Ghi chú này có định dạng cũ không tương thích.</p>
+                <p className="mt-2">Vui lòng tạo một ghi chú mới. Bạn có thể sao chép và dán nội dung từ ghi chú cũ nếu cần.</p>
+            </div>
+        ) : (
+            <Textarea
+              value={content}
+              onChange={handleContentChange}
+              placeholder="Viết điều gì đó..."
+              className="flex-1 w-full h-full p-8 text-base resize-none border-none focus-visible:ring-0 bg-transparent"
+              autoFocus
+            />
+        )}
     </div>
   );
 }
+    
+
     
