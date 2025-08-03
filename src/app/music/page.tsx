@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Upload, Repeat, Repeat1, Shuffle, ListMusic, Music2, Pencil, Save
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Upload, Repeat, Repeat1, Shuffle, ListMusic, Music2, Pencil, Save, Loader2
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
 
 
 interface Track {
@@ -70,6 +69,7 @@ export default function MusicPage() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
@@ -82,8 +82,10 @@ export default function MusicPage() {
 
   // Fetch user's music from Firestore
   useEffect(() => {
+    setIsLoading(true);
     if (!user) {
         setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+        setIsLoading(false);
         return;
     }
 
@@ -91,15 +93,13 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      if (userMusic.length > 0) {
-        setPlaylist(userMusic);
-      } else {
-        setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
-      }
+      setPlaylist(userMusic);
+      setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
         toast({ title: "Lỗi", description: "Không thể tải nhạc của bạn.", variant: 'destructive' });
-        setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+        setPlaylist([]);
+        setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -244,7 +244,7 @@ export default function MusicPage() {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !currentTrack) return;
     
     const setAudioData = () => {
         setDuration(audio.duration);
@@ -370,37 +370,43 @@ export default function MusicPage() {
                 <input type="file" className="hidden" ref={fileInputRef} onChange={handleUpload} accept="audio/*" />
             </div>
             <div className="flex-1 overflow-y-auto">
-                {playlist.map((track, index) => {
-                    const isActive = (isShuffled ? shuffledIndices[currentTrackIndex] === index : currentTrackIndex === index);
-                    return (
-                       <div key={track.id} className={cn("relative group/item", isActive ? "bg-primary/20" : "")}>
-                         <button
-                            
-                            className={cn(
-                                "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors"
-                            )}
-                            onClick={() => setCurrentTrackIndex(isShuffled ? shuffledIndices.findIndex(i => i === index) : index)}
-                        >
-                            <Image src={track.albumArtUrl} alt={track.title} width={40} height={40} className="rounded-md" data-ai-hint={track.dataAiHint as string | undefined} />
-                            <div className="flex-1 truncate">
-                                <p className="font-semibold text-sm truncate">{track.title}</p>
-                                <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                            </div>
-                            {isActive && isPlaying && <Music2 className="w-5 h-5 text-primary animate-pulse" />}
-                        </button>
-                        {track.ownerId === user?.id && (
-                             <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100"
-                                onClick={() => openEditDialog(track)}
+                {isLoading ? (
+                    <div className="p-4 flex items-center justify-center h-full">
+                        <Loader2 className="w-6 h-6 animate-spin"/>
+                    </div>
+                ) : (
+                    playlist.map((track, index) => {
+                        const isActive = (isShuffled ? shuffledIndices[currentTrackIndex] === index : currentTrackIndex === index);
+                        return (
+                           <div key={track.id} className={cn("relative group/item", isActive ? "bg-primary/20" : "")}>
+                             <button
+                                
+                                className={cn(
+                                    "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors"
+                                )}
+                                onClick={() => setCurrentTrackIndex(isShuffled ? shuffledIndices.findIndex(i => i === index) : index)}
                             >
-                                <Pencil className="w-4 h-4"/>
-                            </Button>
-                        )}
-                       </div>
-                    )
-                })}
+                                <Image src={track.albumArtUrl} alt={track.title} width={40} height={40} className="rounded-md" data-ai-hint={track.dataAiHint as string | undefined} />
+                                <div className="flex-1 truncate">
+                                    <p className="font-semibold text-sm truncate">{track.title}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                                </div>
+                                {isActive && isPlaying && <Music2 className="w-5 h-5 text-primary animate-pulse" />}
+                            </button>
+                            {track.ownerId === user?.id && (
+                                 <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100"
+                                    onClick={() => openEditDialog(track)}
+                                >
+                                    <Pencil className="w-4 h-4"/>
+                                </Button>
+                            )}
+                           </div>
+                        )
+                    })
+                )}
             </div>
         </aside>
 
@@ -429,7 +435,7 @@ export default function MusicPage() {
                 ) : (
                     <div className="flex flex-col items-center justify-center h-[380px] text-muted-foreground">
                         <Music2 className="w-24 h-24 mb-4" />
-                        <p>Chọn một bài hát để bắt đầu</p>
+                        <p>{isLoading ? 'Đang tải nhạc...' : 'Chọn một bài hát để bắt đầu'}</p>
                     </div>
                 )}
            </div>
