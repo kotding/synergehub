@@ -73,7 +73,7 @@ export default function MessagingPage() {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [viewingProfile, setViewingProfile] = useState<User | null>(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [newGroup, setNewGroup] = useState({ name: '', avatarFile: null as string | null, avatarPreview: "https://placehold.co/128x128.png", members: new Set<string>() });
+  const [newGroup, setNewGroup] = useState({ name: '', avatarFile: null as string | null, avatarPreview: "/images/default_avatar.png", members: new Set<string>() });
   const [isSearchingUser, setIsSearchingUser] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -338,7 +338,7 @@ export default function MessagingPage() {
       setIsSending(true);
       try {
           const groupChatRef = doc(collection(db, "chats"));
-          let groupAvatarUrl = "https://placehold.co/128x128.png";
+          let groupAvatarUrl = "/images/default_avatar.png";
           
           if(newGroup.avatarFile) {
               const storageRef = ref(storage, `group_avatars/${groupChatRef.id}`);
@@ -361,7 +361,7 @@ export default function MessagingPage() {
           
           toast({ title: "Thành công", description: `Nhóm "${newGroup.name}" đã được tạo.` });
           setIsCreatingGroup(false);
-          setNewGroup({ name: '', avatarFile: null, avatarPreview: "https://placehold.co/128x128.png", members: new Set() });
+          setNewGroup({ name: '', avatarFile: null, avatarPreview: "/images/default_avatar.png", members: new Set() });
 
       } catch (error) {
           console.error("Error creating group:", error);
@@ -851,7 +851,3 @@ export default function MessagingPage() {
     </>
   );
 }
-
-    
-
-    

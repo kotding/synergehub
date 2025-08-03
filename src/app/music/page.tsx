@@ -28,21 +28,21 @@ const defaultPlaylist: Omit<Track, 'id'>[] = [
     {
         title: "Inspiring Dreams",
         artist: "AudioCoffee",
-        albumArtUrl: "https://placehold.co/300x300.png",
+        albumArtUrl: "/images/default_music_icon.png",
         dataAiHint: "inspiring abstract",
         audioUrl: "/music/inspiring-dreams.mp3",
     },
     {
         title: "Ambient Classical Guitar",
         artist: "William King",
-        albumArtUrl: "https://placehold.co/300x300.png",
+        albumArtUrl: "/images/default_music_icon.png",
         dataAiHint: "classical guitar",
         audioUrl: "/music/ambient-classical-guitar.mp3",
     },
      {
         title: "Lofi Study",
         artist: "FASSounds",
-        albumArtUrl: "https://placehold.co/300x300.png",
+        albumArtUrl: "/images/default_music_icon.png",
         dataAiHint: "lofi anime",
         audioUrl: "/music/lofi-study.mp3",
     },
@@ -268,7 +268,7 @@ export default function MusicPage() {
         await addDoc(collection(db, 'music'), {
             title: file.name.replace(/\.[^/.]+$/, ""),
             artist: "Nghệ sĩ không xác định",
-            albumArtUrl: "https://placehold.co/300x300.png",
+            albumArtUrl: "/images/default_music_icon.png",
             audioUrl: audioUrl,
             ownerId: user.id,
             createdAt: serverTimestamp()

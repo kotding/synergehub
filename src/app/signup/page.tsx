@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -36,7 +37,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [bio, setBio] = useState("");
-  const [avatarPreview, setAvatarPreview] = useState("https://placehold.co/128x128.png");
+  const [avatarPreview, setAvatarPreview] = useState("/images/default_avatar.png");
   const [avatarFile, setAvatarFile] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
@@ -103,7 +104,7 @@ export default function SignupPage() {
       const userId = newUserRef.id;
 
       // 2. Upload avatar if it exists, otherwise use placeholder
-      let avatarUrl = "https://placehold.co/128x128.png";
+      let avatarUrl = "/images/default_avatar.png";
       if (avatarFile) {
         try {
             const storageRef = ref(storage, `avatars/${userId}`);
