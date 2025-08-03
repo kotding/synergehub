@@ -99,8 +99,8 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist(userMusic.length > 0 ? userMusic : staticDefaultPlaylist);
-      setCurrentTrackIndex(0); // Reset index when playlist changes
+      setPlaylist(userMusic.length > 0 ? [...userMusic, ...staticDefaultPlaylist] : staticDefaultPlaylist);
+      setCurrentTrackIndex(0);
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
@@ -127,7 +127,6 @@ export default function MusicPage() {
             analyserRef.current = context.createAnalyser();
             analyserRef.current.fftSize = 128;
             
-            // Check if sourceRef is already connected
             if (!sourceRef.current) {
                  sourceRef.current = context.createMediaElementSource(audioRef.current);
                  sourceRef.current.connect(analyserRef.current);
@@ -142,7 +141,6 @@ export default function MusicPage() {
   // Audio Visualizer animation effect
   useEffect(() => {
     if (!isPlaying || !visualizerRef.current || !analyserRef.current) {
-        // Clear canvas when not playing
         const canvas = visualizerRef.current;
         if (canvas) {
             const ctx = canvas.getContext('2d');
@@ -194,7 +192,6 @@ export default function MusicPage() {
 
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
-    // Resume AudioContext if it's suspended
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     }
@@ -202,17 +199,18 @@ export default function MusicPage() {
   };
   
   useEffect(() => {
-    if (!audioRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (isPlaying) {
-      audioRef.current.play().catch(e => {
-        console.error("Playback error:", e);
-        toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' });
-        setIsPlaying(false);
-      });
+        audio.play().catch(e => {
+            console.error("Playback error:", e);
+            setIsPlaying(false);
+        });
     } else {
-      audioRef.current.pause();
+        audio.pause();
     }
-  }, [isPlaying, toast]);
+  }, [isPlaying]);
   
   const generateShuffledIndices = useCallback(() => {
     const indices = Array.from(Array(playlist.length).keys());
@@ -239,7 +237,6 @@ export default function MusicPage() {
         if(nextState) {
             generateShuffledIndices();
         } else {
-            // When turning shuffle off, find the original index of the current song
             if (currentTrack) {
               const originalIndex = playlist.findIndex(track => track.id === currentTrack.id);
               setCurrentTrackIndex(originalIndex >= 0 ? originalIndex : 0);
@@ -272,42 +269,18 @@ export default function MusicPage() {
       }
   }, [playlist.length, isShuffled, generateShuffledIndices]);
   
-  // Imperatively control the audio source
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-        if (audio.src !== currentTrack.audioUrl) {
-            audio.src = currentTrack.audioUrl;
-            audio.load();
-        }
+      if (audio.src !== currentTrack.audioUrl) {
+        audio.src = currentTrack.audioUrl;
+        audio.load();
+      }
     } else if (audio && !currentTrack) {
-        audio.pause();
-        audio.src = '';
+      audio.pause();
+      audio.src = '';
     }
   }, [currentTrack]);
-
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-        const setAudioData = () => {
-            setDuration(audio.duration);
-            setProgress(audio.currentTime);
-        }
-        const setAudioTime = () => setProgress(audio.currentTime);
-
-        audio.addEventListener('loadeddata', setAudioData);
-        audio.addEventListener('timeupdate', setAudioTime);
-        audio.addEventListener('ended', onEnded);
-        
-        return () => {
-          audio.removeEventListener('loadeddata', setAudioData);
-          audio.removeEventListener('timeupdate', setAudioTime);
-          audio.removeEventListener('ended', onEnded);
-        }
-    }
-  }, [onEnded]);
-
 
   const handleProgressChange = (value: number[]) => {
     if (audioRef.current) {
@@ -398,12 +371,33 @@ export default function MusicPage() {
     }
   };
 
+  const onCanPlay = () => {
+      if(audioRef.current){
+        setDuration(audioRef.current.duration);
+        if (isPlaying) {
+             audioRef.current.play().catch(e => {
+                console.error("Playback error onCanPlay:", e);
+                setIsPlaying(false);
+             });
+        }
+      }
+  }
+
+  const onTimeUpdate = () => {
+      if(audioRef.current) {
+          setProgress(audioRef.current.currentTime);
+      }
+  }
+
   return (
     <>
     <audio
         ref={audioRef}
         crossOrigin="anonymous"
         preload="auto"
+        onEnded={onEnded}
+        onCanPlay={onCanPlay}
+        onTimeUpdate={onTimeUpdate}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
