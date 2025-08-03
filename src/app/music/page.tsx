@@ -22,9 +22,10 @@ interface Track {
   albumArtUrl: string;
   audioUrl: string;
   ownerId?: string;
+  dataAiHint?: string;
 }
 
-const defaultPlaylist: Omit<Track, 'id'>[] = [
+const defaultPlaylist: Omit<Track, 'id' | 'ownerId'>[] = [
     {
         title: "Inspiring Dreams",
         artist: "AudioCoffee",
@@ -69,13 +70,17 @@ export default function MusicPage() {
 
   // Fetch user's music from Firestore
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+        setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+        return;
+    }
 
     const q = query(collection(db, 'music'), where('ownerId', '==', user.id), orderBy('createdAt', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist(prev => [...userMusic, ...defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`}))]);
+      const combinedPlaylist = [...userMusic, ...defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`}))];
+      setPlaylist(combinedPlaylist);
     }, (error) => {
         console.error("Error fetching user music:", error);
         toast({ title: "Lỗi", description: "Không thể tải nhạc của bạn.", variant: 'destructive' });
@@ -85,17 +90,23 @@ export default function MusicPage() {
   }, [user, toast]);
   
   const currentTrack = useMemo(() => {
-      if (isShuffled) {
-        return playlist[shuffledIndices[currentTrackIndex]];
-      }
-      return playlist[currentTrackIndex];
+      if (playlist.length === 0) return null;
+      const index = isShuffled ? shuffledIndices[currentTrackIndex] : currentTrackIndex;
+      return playlist[index] || null;
   }, [currentTrackIndex, playlist, isShuffled, shuffledIndices]);
   
   // Audio Visualizer effect
   useEffect(() => {
     if (!isPlaying || !audioRef.current || !visualizerRef.current) return;
 
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    let audioContext: AudioContext;
+    try {
+        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } catch (e) {
+        console.warn("Web Audio API is not supported in this browser.");
+        return;
+    }
+
     const analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaElementSource(audioRef.current);
     source.connect(analyser);
@@ -149,7 +160,10 @@ export default function MusicPage() {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play().catch(e => console.error("Playback error:", e));
+      audioRef.current.play().catch(e => {
+        console.error("Playback error:", e)
+        toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' })
+      });
     }
     setIsPlaying(!isPlaying);
   };
@@ -180,8 +194,10 @@ export default function MusicPage() {
             generateShuffledIndices();
         } else {
             // When turning shuffle off, find the original index of the current song
-            const originalIndex = playlist.findIndex(track => track.id === currentTrack.id);
-            setCurrentTrackIndex(originalIndex >= 0 ? originalIndex : 0);
+            if (currentTrack) {
+              const originalIndex = playlist.findIndex(track => track.id === currentTrack.id);
+              setCurrentTrackIndex(originalIndex >= 0 ? originalIndex : 0);
+            }
         }
         return nextState;
     });
@@ -224,7 +240,7 @@ export default function MusicPage() {
     audio.addEventListener('timeupdate', setAudioTime);
     audio.addEventListener('ended', onEnded);
     
-    // Autoplay when track changes
+    // Autoplay when track changes and isPlaying is true
     if (isPlaying) {
       audio.play().catch(e => console.error("Autoplay failed:", e));
     }
@@ -300,29 +316,29 @@ export default function MusicPage() {
         <aside className="w-1/3 lg:w-1/4 h-full flex flex-col border-r border-border bg-card/30">
             <div className="p-4 border-b border-border flex justify-between items-center">
                 <h2 className="text-xl font-bold flex items-center gap-2"><ListMusic /> Danh sách phát</h2>
-                <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isUploading} title="Tải nhạc lên">
+                <Button variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} disabled={isUploading || !user} title={user ? "Tải nhạc lên" : "Đăng nhập để tải nhạc lên"}>
                     {isUploading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div> : <Upload />}
                 </Button>
                 <input type="file" className="hidden" ref={fileInputRef} onChange={handleUpload} accept="audio/*" />
             </div>
             <div className="flex-1 overflow-y-auto">
                 {playlist.map((track, index) => {
-                    const originalIndex = isShuffled ? shuffledIndices.findIndex(i => i === index) : index;
+                    const isActive = (isShuffled ? shuffledIndices[currentTrackIndex] === index : currentTrackIndex === index);
                     return (
                         <button
                             key={track.id}
                             className={cn(
                                 "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors",
-                                (isShuffled ? shuffledIndices[currentTrackIndex] : currentTrackIndex) === index ? "bg-primary/20" : ""
+                                isActive ? "bg-primary/20" : ""
                             )}
-                            onClick={() => setCurrentTrackIndex(isShuffled ? originalIndex : index)}
+                            onClick={() => setCurrentTrackIndex(isShuffled ? shuffledIndices.findIndex(i => i === index) : index)}
                         >
                             <Image src={track.albumArtUrl} alt={track.title} width={40} height={40} className="rounded-md" data-ai-hint={track.dataAiHint as string | undefined} />
                             <div className="flex-1 truncate">
                                 <p className="font-semibold text-sm truncate">{track.title}</p>
                                 <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
                             </div>
-                            {(isShuffled ? shuffledIndices[currentTrackIndex] : currentTrackIndex) === index && isPlaying && <Music2 className="w-5 h-5 text-primary animate-pulse" />}
+                            {isActive && isPlaying && <Music2 className="w-5 h-5 text-primary animate-pulse" />}
                         </button>
                     )
                 })}
@@ -369,28 +385,29 @@ export default function MusicPage() {
                     max={duration || 1}
                     onValueChange={handleProgressChange}
                     className="my-2"
+                    disabled={!currentTrack}
                 />
 
                 <div className="flex justify-center items-center gap-4 mt-4">
-                     <Button variant="ghost" size="icon" onClick={handleShuffleToggle} className={cn(isShuffled && "text-primary")}>
+                     <Button variant="ghost" size="icon" onClick={handleShuffleToggle} className={cn(isShuffled && "text-primary")} disabled={!currentTrack}>
                         <Shuffle />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handlePrev}>
+                    <Button variant="ghost" size="icon" onClick={handlePrev} disabled={!currentTrack}>
                         <SkipBack />
                     </Button>
-                    <Button size="lg" className="w-16 h-16 rounded-full" onClick={handlePlayPause}>
+                    <Button size="lg" className="w-16 h-16 rounded-full" onClick={handlePlayPause} disabled={!currentTrack}>
                         {isPlaying ? <Pause className="w-8 h-8"/> : <Play className="w-8 h-8"/>}
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleNext}>
+                    <Button variant="ghost" size="icon" onClick={handleNext} disabled={!currentTrack}>
                         <SkipForward />
                     </Button>
-                     <Button variant="ghost" size="icon" onClick={cycleRepeatMode} className={cn(repeatMode !== 'off' && "text-primary")}>
+                     <Button variant="ghost" size="icon" onClick={cycleRepeatMode} className={cn(repeatMode !== 'off' && "text-primary")} disabled={!currentTrack}>
                         {repeatMode === 'one' ? <Repeat1 /> : <Repeat />}
                     </Button>
                 </div>
 
                 <div className="flex items-center gap-2 mt-6">
-                    <Button variant="ghost" size="icon" onClick={() => handleVolumeChange([volume > 0 ? 0 : 0.75])}>
+                    <Button variant="ghost" size="icon" onClick={() => handleVolumeChange([volume > 0 ? 0 : 0.75])} disabled={!currentTrack}>
                         {volume === 0 ? <VolumeX /> : <Volume2 />}
                     </Button>
                     <Slider
@@ -398,17 +415,25 @@ export default function MusicPage() {
                         max={1}
                         step={0.01}
                         onValueChange={handleVolumeChange}
+                        disabled={!currentTrack}
                     />
                 </div>
            </div>
            
-           <audio
-                ref={audioRef}
-                src={currentTrack?.audioUrl}
-                crossOrigin="anonymous"
-                onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
-            />
+           {currentTrack && (
+                <audio
+                    key={currentTrack.id}
+                    ref={audioRef}
+                    src={currentTrack.audioUrl}
+                    crossOrigin="anonymous"
+                    onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                />
+           )}
         </main>
     </div>
   );
 }
+
+    
