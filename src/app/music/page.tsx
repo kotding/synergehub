@@ -3,17 +3,22 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Upload, Repeat, Repeat1, Shuffle, ListMusic, Music2
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Upload, Repeat, Repeat1, Shuffle, ListMusic, Music2, Pencil, Save
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
+
 
 interface Track {
   id: string;
@@ -67,6 +72,12 @@ export default function MusicPage() {
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+  
+  // Edit track state
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+  const [newTrackDetails, setNewTrackDetails] = useState({ title: '', artist: '' });
+  const [isSaving, setIsSaving] = useState(false);
+
 
   // Fetch user's music from Firestore
   useEffect(() => {
@@ -310,7 +321,39 @@ export default function MusicPage() {
       setRepeatMode(modes[nextIndex]);
   }
 
+  const openEditDialog = (track: Track) => {
+    if (!track.ownerId) {
+        toast({ title: "Thông báo", description: "Không thể chỉnh sửa bài hát mặc định."});
+        return;
+    }
+    setEditingTrack(track);
+    setNewTrackDetails({ title: track.title, artist: track.artist });
+  };
+
+  const handleSaveChanges = async () => {
+    if (!editingTrack || !newTrackDetails.title.trim()) {
+        toast({ title: "Lỗi", description: "Tên bài hát không được để trống.", variant: 'destructive' });
+        return;
+    }
+    setIsSaving(true);
+    try {
+        const trackRef = doc(db, 'music', editingTrack.id);
+        await updateDoc(trackRef, {
+            title: newTrackDetails.title,
+            artist: newTrackDetails.artist || "Nghệ sĩ không xác định",
+        });
+        toast({ title: 'Thành công', description: 'Thông tin bài hát đã được cập nhật.' });
+        setEditingTrack(null);
+    } catch (error) {
+        console.error("Error updating track:", error);
+        toast({ title: "Lỗi", description: "Không thể cập nhật thông tin bài hát.", variant: 'destructive' });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   return (
+    <>
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
         <aside className="w-1/3 lg:w-1/4 h-full flex flex-col border-r border-border bg-card/30">
@@ -325,11 +368,11 @@ export default function MusicPage() {
                 {playlist.map((track, index) => {
                     const isActive = (isShuffled ? shuffledIndices[currentTrackIndex] === index : currentTrackIndex === index);
                     return (
-                        <button
-                            key={track.id}
+                       <div key={track.id} className={cn("relative group/item", isActive ? "bg-primary/20" : "")}>
+                         <button
+                            
                             className={cn(
-                                "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors",
-                                isActive ? "bg-primary/20" : ""
+                                "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors"
                             )}
                             onClick={() => setCurrentTrackIndex(isShuffled ? shuffledIndices.findIndex(i => i === index) : index)}
                         >
@@ -340,6 +383,17 @@ export default function MusicPage() {
                             </div>
                             {isActive && isPlaying && <Music2 className="w-5 h-5 text-primary animate-pulse" />}
                         </button>
+                        {track.ownerId === user?.id && (
+                             <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/item:opacity-100"
+                                onClick={() => openEditDialog(track)}
+                            >
+                                <Pencil className="w-4 h-4"/>
+                            </Button>
+                        )}
+                       </div>
                     )
                 })}
             </div>
@@ -426,14 +480,59 @@ export default function MusicPage() {
                     ref={audioRef}
                     src={currentTrack.audioUrl}
                     crossOrigin="anonymous"
-                    onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                 />
            )}
         </main>
     </div>
+    
+    {/* Edit Track Dialog */}
+    <Dialog open={!!editingTrack} onOpenChange={(isOpen) => !isOpen && setEditingTrack(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Chỉnh sửa thông tin bài hát</DialogTitle>
+                <DialogDescription>
+                    Cập nhật tên bài hát và nghệ sĩ. Nhấn lưu khi bạn hoàn tất.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="title" className="text-right">
+                        Tên bài hát
+                    </Label>
+                    <Input
+                        id="title"
+                        value={newTrackDetails.title}
+                        onChange={(e) => setNewTrackDetails({ ...newTrackDetails, title: e.target.value })}
+                        className="col-span-3"
+                    />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="artist" className="text-right">
+                        Nghệ sĩ
+                    </Label>
+                    <Input
+                        id="artist"
+                        value={newTrackDetails.artist}
+                        onChange={(e) => setNewTrackDetails({ ...newTrackDetails, artist: e.target.value })}
+                        className="col-span-3"
+                    />
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">
+                        Hủy
+                    </Button>
+                </DialogClose>
+                <Button onClick={handleSaveChanges} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Lưu thay đổi
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }
-
-    
