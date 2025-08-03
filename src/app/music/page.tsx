@@ -59,7 +59,7 @@ export default function MusicPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const visualizerRef = useRef<HTMLCanvasElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -72,7 +72,7 @@ export default function MusicPage() {
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(isUploading);
+  const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
@@ -615,5 +615,7 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
 
     
