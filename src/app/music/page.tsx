@@ -30,7 +30,7 @@ interface Track {
   createdAt?: any;
 }
 
-const defaultPlaylist: Omit<Track, 'id' | 'ownerId'>[] = [
+const defaultPlaylist: Omit<Track, 'id' | 'ownerId' | 'createdAt'>[] = [
     {
         title: "Inspiring Dreams",
         artist: "AudioCoffee",
@@ -62,13 +62,13 @@ export default function MusicPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
 
-  const [playlist, setPlaylist] = useState<Track[]>([]);
+  const [playlist, setPlaylist] = useState<Track[]>(() => defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState(isUploading);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
@@ -83,8 +83,10 @@ export default function MusicPage() {
   // Fetch user's music from Firestore
   useEffect(() => {
     setIsLoading(true);
+    const staticDefaultPlaylist = defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`}));
+
     if (!user) {
-        setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+        setPlaylist(staticDefaultPlaylist);
         setIsLoading(false);
         return;
     }
@@ -93,12 +95,12 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist(userMusic);
+      setPlaylist([...userMusic, ...staticDefaultPlaylist]);
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
         toast({ title: "Lỗi", description: "Không thể tải nhạc của bạn.", variant: 'destructive' });
-        setPlaylist([]);
+        setPlaylist(staticDefaultPlaylist);
         setIsLoading(false);
     });
 
@@ -547,3 +549,5 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
