@@ -58,12 +58,13 @@ const defaultPlaylistData: Omit<Track, 'id' | 'ownerId' | 'createdAt'>[] = [
 export default function MusicPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const animationFrameRef = useRef<number>();
 
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
@@ -100,7 +101,11 @@ export default function MusicPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
       setPlaylist(userMusic);
-      if(userMusic.length === 0){
+      
+      // Reset index if playlist is empty, otherwise stay at 0
+      setCurrentTrackIndex(0);
+
+      if (userMusic.length === 0) {
         setPlaylist(staticDefaultPlaylist);
       }
       setIsLoading(false);
@@ -120,34 +125,35 @@ export default function MusicPage() {
       return playlist[index] || null;
   }, [currentTrackIndex, playlist, isShuffled, shuffledIndices, isLoading]);
   
+  
   // Setup AudioContext and visualizer nodes once
   useEffect(() => {
+    return () => {
+        // Cleanup on unmount
+        animationFrameRef.current && cancelAnimationFrame(animationFrameRef.current);
+        audioContextRef.current?.close();
+    };
+  }, []);
+
+  const setupAudioContext = useCallback(() => {
     if (audioRef.current && !audioContextRef.current) {
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
             audioContextRef.current = context;
             analyserRef.current = context.createAnalyser();
             analyserRef.current.fftSize = 128;
-            
-            if (!sourceRef.current) {
-                 sourceRef.current = context.createMediaElementSource(audioRef.current);
-                 sourceRef.current.connect(analyserRef.current);
-                 analyserRef.current.connect(context.destination);
-            }
+            sourceRef.current = context.createMediaElementSource(audioRef.current);
+            sourceRef.current.connect(analyserRef.current);
+            analyserRef.current.connect(context.destination);
         } catch (e) {
-            console.warn("Web Audio API is not supported or already connected:", e);
+            console.warn("Web Audio API is not supported or failed to initialize:", e);
         }
     }
   }, []);
 
-  // Audio Visualizer animation effect
-  useEffect(() => {
+
+  const drawVisualizer = useCallback(() => {
     if (!isPlaying || !visualizerRef.current || !analyserRef.current) {
-        const canvas = visualizerRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
         return;
     }
 
@@ -158,9 +164,8 @@ export default function MusicPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
     const renderFrame = () => {
-      animationFrameId = requestAnimationFrame(renderFrame);
+      animationFrameRef.current = requestAnimationFrame(renderFrame);
       analyser.getByteFrequencyData(dataArray);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -177,23 +182,46 @@ export default function MusicPage() {
         x += barWidth + 1;
       }
     };
-
     renderFrame();
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
   }, [isPlaying]);
+
+  // Effect to handle starting/stopping the visualizer
+  useEffect(() => {
+    if (isPlaying) {
+        drawVisualizer();
+    } else {
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+        }
+        const canvas = visualizerRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+    return () => {
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+        }
+    };
+  }, [isPlaying, drawVisualizer]);
+  
 
   // Load new track source
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-      audio.src = currentTrack.audioUrl;
-      audio.load();
-    } else if (audio) {
+      // Don't change src if it's the same url
+      if (audio.src !== currentTrack.audioUrl) {
+          audio.src = currentTrack.audioUrl;
+          audio.load();
+      }
+    } else if (audio && !currentTrack) {
       audio.pause();
       audio.src = '';
+      setProgress(0);
+      setDuration(0);
+      setIsPlaying(false);
     }
   }, [currentTrack]);
   
@@ -204,16 +232,13 @@ export default function MusicPage() {
   
     if (isPlaying) {
       audio.play().catch(e => {
-        // This catch block is important to prevent unhandled promise rejection errors
-        // when play() is interrupted by a new load() request, for example.
         console.error("Playback error:", e);
-        setIsPlaying(false); // Reset state if playback fails
+        setIsPlaying(false);
       });
     } else {
       audio.pause();
     }
   }, [isPlaying]);
-
 
   const formatTime = (seconds: number) => {
     if (isNaN(seconds)) return "0:00";
@@ -224,9 +249,13 @@ export default function MusicPage() {
 
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
+    
+    // First time interaction requires AudioContext resume
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     }
+    setupAudioContext(); // Setup on first play
+    
     setIsPlaying(!isPlaying);
   };
   
@@ -580,6 +609,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-
-    
