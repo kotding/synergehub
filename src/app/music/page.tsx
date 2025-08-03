@@ -99,7 +99,10 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist([...userMusic, ...staticDefaultPlaylist]);
+      setPlaylist(userMusic);
+      if(userMusic.length === 0){
+        setPlaylist(staticDefaultPlaylist);
+      }
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
@@ -182,6 +185,36 @@ export default function MusicPage() {
     };
   }, [isPlaying]);
 
+  // Load new track source
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio && currentTrack?.audioUrl) {
+      audio.src = currentTrack.audioUrl;
+      audio.load();
+    } else if (audio) {
+      audio.pause();
+      audio.src = '';
+    }
+  }, [currentTrack]);
+  
+  // Control play/pause
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+  
+    if (isPlaying) {
+      audio.play().catch(e => {
+        // This catch block is important to prevent unhandled promise rejection errors
+        // when play() is interrupted by a new load() request, for example.
+        console.error("Playback error:", e);
+        setIsPlaying(false); // Reset state if playback fails
+      });
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying]);
+
+
   const formatTime = (seconds: number) => {
     if (isNaN(seconds)) return "0:00";
     const minutes = Math.floor(seconds / 60);
@@ -196,35 +229,6 @@ export default function MusicPage() {
     }
     setIsPlaying(!isPlaying);
   };
-  
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (isPlaying) {
-        audio.play().catch(e => {
-            console.error("Playback error:", e);
-            setIsPlaying(false);
-        });
-    } else {
-        audio.pause();
-    }
-  }, [isPlaying]);
-
-    
-  useEffect(() => {
-      const audio = audioRef.current;
-      if (audio && currentTrack) {
-          audio.src = currentTrack.audioUrl;
-          audio.load();
-          if (isPlaying) {
-             // onCanPlay will handle the play
-          }
-      } else if (audio) {
-          audio.pause();
-          audio.src = '';
-      }
-  }, [currentTrack]);
   
   const generateShuffledIndices = useCallback(() => {
     const indices = Array.from(Array(playlist.length).keys());
@@ -372,7 +376,7 @@ export default function MusicPage() {
     }
   };
 
-  const onCanPlay = () => {
+  const onLoadedMetadata = () => {
       if(audioRef.current){
         setDuration(audioRef.current.duration);
         if (isPlaying) {
@@ -396,7 +400,7 @@ export default function MusicPage() {
         ref={audioRef}
         crossOrigin="anonymous"
         onEnded={onEnded}
-        onLoadedMetadata={onCanPlay}
+        onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -576,3 +580,6 @@ export default function MusicPage() {
     </>
   );
 }
+
+
+    
