@@ -70,13 +70,12 @@ export default function MusicPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
-  const [setCurrentTime] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
-  const [progress, setProgress] = useState(0);
   
   // Edit track state
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
@@ -101,7 +100,7 @@ export default function MusicPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
       setPlaylist(userMusic.length > 0 ? userMusic : staticDefaultPlaylist);
-      setCurrentTrackIndex(0);
+      setCurrentTrackIndex(0); // Reset index when playlist changes
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
@@ -277,21 +276,15 @@ export default function MusicPage() {
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-      if (audio.src !== currentTrack.audioUrl) {
-        audio.src = currentTrack.audioUrl;
-        audio.load(); // Tell the browser to load the new source
-      }
-      if (isPlaying) {
-        audio.play().catch(e => {
-          console.error("Playback error on track change:", e);
-          toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' });
-          setIsPlaying(false);
-        });
-      }
-    } else if (audio) {
+        if (audio.src !== currentTrack.audioUrl) {
+            audio.src = currentTrack.audioUrl;
+            audio.load();
+        }
+    } else if (audio && !currentTrack) {
         audio.pause();
+        audio.src = '';
     }
-  }, [currentTrack, isPlaying, toast]);
+  }, [currentTrack]);
 
 
   useEffect(() => {
@@ -589,7 +582,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-    
-
-    
