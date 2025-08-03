@@ -28,6 +28,7 @@ interface Track {
   audioUrl: string;
   ownerId?: string;
   dataAiHint?: string;
+  createdAt?: any;
 }
 
 const defaultPlaylist: Omit<Track, 'id' | 'ownerId'>[] = [
@@ -62,7 +63,7 @@ export default function MusicPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
 
-  const [playlist, setPlaylist] = useState<Track[]>(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+  const [playlist, setPlaylist] = useState<Track[]>([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.75);
@@ -90,11 +91,15 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      const combinedPlaylist = [...userMusic, ...defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`}))];
-      setPlaylist(combinedPlaylist);
+      if (userMusic.length > 0) {
+        setPlaylist(userMusic);
+      } else {
+        setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+      }
     }, (error) => {
         console.error("Error fetching user music:", error);
         toast({ title: "Lỗi", description: "Không thể tải nhạc của bạn.", variant: 'destructive' });
+        setPlaylist(defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
     });
 
     return () => unsubscribe();
@@ -322,7 +327,7 @@ export default function MusicPage() {
   }
 
   const openEditDialog = (track: Track) => {
-    if (!track.ownerId) {
+    if (!track.ownerId || track.ownerId !== user?.id) {
         toast({ title: "Thông báo", description: "Không thể chỉnh sửa bài hát mặc định."});
         return;
     }
