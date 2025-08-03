@@ -101,7 +101,8 @@ export default function MusicPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
       setPlaylist(userMusic.length > 0 ? userMusic : staticDefaultPlaylist);
-      setCurrentTrackIndex(0);
+      setCurrentTrackIndex(0); // Reset index on playlist change
+      setIsPlaying(false); // Stop playing on playlist change
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
@@ -120,17 +121,16 @@ export default function MusicPage() {
   }, [currentTrackIndex, playlist, isShuffled, shuffledIndices, isLoading]);
   
   
-  // Setup AudioContext and visualizer nodes once
+  // Setup AudioContext
   useEffect(() => {
     return () => {
-        // Cleanup on unmount
         animationFrameRef.current && cancelAnimationFrame(animationFrameRef.current);
         audioContextRef.current?.close();
     };
   }, []);
 
   const setupAudioContext = useCallback(() => {
-    if (audioRef.current && !audioContextRef.current) {
+    if (audioRef.current && !sourceRef.current) { // Check if source is already created
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
             const source = context.createMediaElementSource(audioRef.current);
@@ -146,11 +146,6 @@ export default function MusicPage() {
 
         } catch (e) {
             console.warn("Web Audio API is not supported or failed to initialize:", e);
-             if (e instanceof DOMException && e.name === "InvalidStateError") {
-                // This can happen on hot-reloads. We can try to disconnect the old source if it exists.
-                // For simplicity, we'll just log it for now.
-                console.error("AudioContext setup failed: Media element already connected.");
-            }
         }
     }
   }, []);
@@ -230,8 +225,7 @@ export default function MusicPage() {
     if (isPlaying) {
       audio.play().catch(e => {
         console.error("Playback error:", e);
-        // Don't set isPlaying to false here, as it might be a temporary issue
-        // that onCanPlay handler can recover from.
+        setIsPlaying(false); // Stop trying to play if there's an error
       });
     } else {
       audio.pause();
@@ -248,7 +242,7 @@ export default function MusicPage() {
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
     
-    setupAudioContext(); // Setup on first play interaction
+    setupAudioContext(); // Setup on first user interaction
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     }
@@ -615,7 +609,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-    
-
-    
