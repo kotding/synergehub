@@ -70,12 +70,13 @@ export default function MusicPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+  const [setCurrentTime] = useState(0);
+  const [isUploading, setIsUploading] = useState(isUploading);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+  const [progress, setProgress] = useState(0);
   
   // Edit track state
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
@@ -142,6 +143,12 @@ export default function MusicPage() {
   // Audio Visualizer animation effect
   useEffect(() => {
     if (!isPlaying || !visualizerRef.current || !analyserRef.current) {
+        // Clear canvas when not playing
+        const canvas = visualizerRef.current;
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
         return;
     }
 
@@ -188,20 +195,25 @@ export default function MusicPage() {
 
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      // Resume AudioContext if it's suspended
-      if (audioContextRef.current?.state === 'suspended') {
-          audioContextRef.current.resume();
-      }
-      audioRef.current.play().catch(e => {
-        console.error("Playback error:", e)
-        toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' })
-      });
+    // Resume AudioContext if it's suspended
+    if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume();
     }
     setIsPlaying(!isPlaying);
   };
+  
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(e => {
+        console.error("Playback error:", e);
+        toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' });
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, toast]);
   
   const generateShuffledIndices = useCallback(() => {
     const indices = Array.from(Array(playlist.length).keys());
@@ -264,27 +276,22 @@ export default function MusicPage() {
   // Imperatively control the audio source
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio) {
-      if (currentTrack?.audioUrl) {
-        if (audio.src !== currentTrack.audioUrl) {
-          audio.src = currentTrack.audioUrl;
-          audio.load(); // Important: tell the browser to load the new source
-        }
-        if (isPlaying) {
-           // Resume AudioContext if it's suspended
-            if (audioContextRef.current?.state === 'suspended') {
-                audioContextRef.current.resume();
-            }
-            audio.play().catch(e => {
-              console.error("Playback error on track change:", e)
-              setIsPlaying(false);
-            });
-        }
-      } else {
-        audio.pause();
+    if (audio && currentTrack?.audioUrl) {
+      if (audio.src !== currentTrack.audioUrl) {
+        audio.src = currentTrack.audioUrl;
+        audio.load(); // Tell the browser to load the new source
       }
+      if (isPlaying) {
+        audio.play().catch(e => {
+          console.error("Playback error on track change:", e);
+          toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' });
+          setIsPlaying(false);
+        });
+      }
+    } else if (audio) {
+        audio.pause();
     }
-  }, [currentTrack, isPlaying]);
+  }, [currentTrack, isPlaying, toast]);
 
 
   useEffect(() => {
@@ -292,9 +299,9 @@ export default function MusicPage() {
     if (audio) {
         const setAudioData = () => {
             setDuration(audio.duration);
-            setCurrentTime(audio.currentTime);
+            setProgress(audio.currentTime);
         }
-        const setAudioTime = () => setCurrentTime(audio.currentTime);
+        const setAudioTime = () => setProgress(audio.currentTime);
 
         audio.addEventListener('loadeddata', setAudioData);
         audio.addEventListener('timeupdate', setAudioTime);
@@ -312,7 +319,7 @@ export default function MusicPage() {
   const handleProgressChange = (value: number[]) => {
     if (audioRef.current) {
       audioRef.current.currentTime = value[0];
-      setCurrentTime(value[0]);
+      setProgress(value[0]);
     }
   };
   
@@ -488,11 +495,11 @@ export default function MusicPage() {
 
            <div className="w-full max-w-md z-10">
                 <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>{formatTime(currentTime)}</span>
+                    <span>{formatTime(progress)}</span>
                     <span>{formatTime(duration)}</span>
                 </div>
                 <Slider
-                    value={[currentTime]}
+                    value={[progress]}
                     max={duration || 1}
                     onValueChange={handleProgressChange}
                     className="my-2"
@@ -582,3 +589,5 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
