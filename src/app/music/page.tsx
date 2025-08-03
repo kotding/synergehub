@@ -71,7 +71,7 @@ export default function MusicPage() {
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState(isUploading);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
@@ -86,11 +86,11 @@ export default function MusicPage() {
   // Fetch user's music from Firestore
   useEffect(() => {
     setIsLoading(true);
-    setCurrentTrackIndex(0); // Reset index on user change
-
+    const staticDefaultPlaylist = defaultPlaylistData.map((t, i) => ({...t, id: `default-${i}`}));
+    
     if (!user) {
-        const staticDefaultPlaylist = defaultPlaylistData.map((t, i) => ({...t, id: `default-${i}`}));
         setPlaylist(staticDefaultPlaylist);
+        setCurrentTrackIndex(0);
         setIsLoading(false);
         return;
     }
@@ -99,12 +99,13 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist(userMusic);
+      setPlaylist(userMusic.length > 0 ? userMusic : staticDefaultPlaylist);
+      setCurrentTrackIndex(0);
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
         toast({ title: "Lỗi", description: "Không thể tải nhạc của bạn.", variant: 'destructive' });
-        setPlaylist([]); // Set to empty on error
+        setPlaylist(staticDefaultPlaylist);
         setIsLoading(false);
     });
 
@@ -130,7 +131,7 @@ export default function MusicPage() {
             analyserRef.current.connect(context.destination);
             analyserRef.current.fftSize = 128;
         } catch (e) {
-            console.warn("Web Audio API is not supported in this browser.");
+            console.warn("Web Audio API is not supported in this browser or already connected.");
         }
     }
   }, []);
@@ -267,26 +268,13 @@ export default function MusicPage() {
 
         audio.addEventListener('loadeddata', setAudioData);
         audio.addEventListener('timeupdate', setAudioTime);
-        audio.addEventListener('ended', onEnded);
         
-        if (currentTrack) {
-            if (audio.src !== currentTrack.audioUrl) {
-                audio.src = currentTrack.audioUrl;
-            }
-            if (isPlaying) {
-                audio.play().catch(e => console.error("Autoplay failed:", e));
-            }
-        } else {
-            audio.pause();
-        }
-
         return () => {
           audio.removeEventListener('loadeddata', setAudioData);
           audio.removeEventListener('timeupdate', setAudioTime);
-          audio.removeEventListener('ended', onEnded);
         }
     }
-  }, [currentTrack, isPlaying, onEnded]);
+  }, []);
 
 
   const handleProgressChange = (value: number[]) => {
@@ -382,10 +370,14 @@ export default function MusicPage() {
     <>
     <audio
         ref={audioRef}
+        key={currentTrack?.id}
+        src={currentTrack?.audioUrl}
         crossOrigin="anonymous"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onEnded={onEnded}
         preload="auto"
+        autoPlay={isPlaying}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
@@ -564,3 +556,5 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
