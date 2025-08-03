@@ -175,7 +175,7 @@ export default function MusicPage() {
   };
 
   const handlePlayPause = () => {
-    if (!audioRef.current || isLoading) return;
+    if (!audioRef.current || !currentTrack) return;
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -247,29 +247,36 @@ export default function MusicPage() {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !currentTrack) return;
-    
-    const setAudioData = () => {
-        setDuration(audio.duration);
-        setCurrentTime(audio.currentTime);
-    }
-    const setAudioTime = () => setCurrentTime(audio.currentTime);
+    if (audio) {
+        const setAudioData = () => {
+            setDuration(audio.duration);
+            setCurrentTime(audio.currentTime);
+        }
+        const setAudioTime = () => setCurrentTime(audio.currentTime);
 
-    audio.addEventListener('loadeddata', setAudioData);
-    audio.addEventListener('timeupdate', setAudioTime);
-    audio.addEventListener('ended', onEnded);
-    
-    // Autoplay when track changes and isPlaying is true
-    if (isPlaying) {
-      audio.play().catch(e => console.error("Autoplay failed:", e));
-    }
+        audio.addEventListener('loadeddata', setAudioData);
+        audio.addEventListener('timeupdate', setAudioTime);
+        audio.addEventListener('ended', onEnded);
+        
+        if (currentTrack) {
+            if (audio.src !== currentTrack.audioUrl) {
+                audio.src = currentTrack.audioUrl;
+            }
+            if (isPlaying) {
+                audio.play().catch(e => console.error("Autoplay failed:", e));
+            }
+        } else {
+            audio.pause();
+        }
 
-    return () => {
-      audio.removeEventListener('loadeddata', setAudioData);
-      audio.removeEventListener('timeupdate', setAudioTime);
-      audio.removeEventListener('ended', onEnded);
+        return () => {
+          audio.removeEventListener('loadeddata', setAudioData);
+          audio.removeEventListener('timeupdate', setAudioTime);
+          audio.removeEventListener('ended', onEnded);
+        }
     }
-  }, [currentTrack, onEnded, isPlaying]);
+  }, [currentTrack, isPlaying, onEnded]);
+
 
   const handleProgressChange = (value: number[]) => {
     if (audioRef.current) {
@@ -362,6 +369,13 @@ export default function MusicPage() {
 
   return (
     <>
+    <audio
+        ref={audioRef}
+        crossOrigin="anonymous"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        preload="auto"
+    />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
         <aside className="w-1/3 lg:w-1/4 h-full flex flex-col border-r border-border bg-card/30">
@@ -487,17 +501,6 @@ export default function MusicPage() {
                     />
                 </div>
            </div>
-           
-           {currentTrack && (
-                <audio
-                    key={currentTrack.id}
-                    ref={audioRef}
-                    src={currentTrack.audioUrl}
-                    crossOrigin="anonymous"
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                />
-           )}
         </main>
     </div>
     
@@ -550,7 +553,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-    
-
-    
