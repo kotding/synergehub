@@ -61,6 +61,9 @@ export default function MusicPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
@@ -114,24 +117,31 @@ export default function MusicPage() {
       return playlist[index] || null;
   }, [currentTrackIndex, playlist, isShuffled, shuffledIndices, isLoading]);
   
-  // Audio Visualizer effect
+  // Setup AudioContext and visualizer nodes once
   useEffect(() => {
-    if (!isPlaying || !audioRef.current || !visualizerRef.current) return;
+    if (audioRef.current && !audioContextRef.current) {
+        try {
+            const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+            audioContextRef.current = context;
+            analyserRef.current = context.createAnalyser();
+            sourceRef.current = context.createMediaElementSource(audioRef.current);
 
-    let audioContext: AudioContext;
-    try {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    } catch (e) {
-        console.warn("Web Audio API is not supported in this browser.");
+            sourceRef.current.connect(analyserRef.current);
+            analyserRef.current.connect(context.destination);
+            analyserRef.current.fftSize = 128;
+        } catch (e) {
+            console.warn("Web Audio API is not supported in this browser.");
+        }
+    }
+  }, []);
+
+  // Audio Visualizer animation effect
+  useEffect(() => {
+    if (!isPlaying || !visualizerRef.current || !analyserRef.current) {
         return;
     }
 
-    const analyser = audioContext.createAnalyser();
-    const source = audioContext.createMediaElementSource(audioRef.current);
-    source.connect(analyser);
-    analyser.connect(audioContext.destination);
-    analyser.fftSize = 128;
-    
+    const analyser = analyserRef.current;
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     const canvas = visualizerRef.current;
@@ -162,9 +172,6 @@ export default function MusicPage() {
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      source.disconnect();
-      analyser.disconnect();
-      // Do not close the audio context to allow re-use
     };
   }, [isPlaying]);
 
@@ -179,6 +186,10 @@ export default function MusicPage() {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
+      // Resume AudioContext if it's suspended
+      if (audioContextRef.current?.state === 'suspended') {
+          audioContextRef.current.resume();
+      }
       audioRef.current.play().catch(e => {
         console.error("Playback error:", e)
         toast({ title: 'Lỗi phát nhạc', description: 'Không thể phát bài hát này.', variant: 'destructive' })
