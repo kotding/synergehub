@@ -62,13 +62,13 @@ export default function MusicPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const visualizerRef = useRef<HTMLCanvasElement>(null);
 
-  const [playlist, setPlaylist] = useState<Track[]>(() => defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`})));
+  const [playlist, setPlaylist] = useState<Track[]>([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isUploading, setIsUploading] = useState(isUploading);
+  const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
@@ -549,5 +549,7 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
 
     
