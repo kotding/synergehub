@@ -99,8 +99,7 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist(userMusic.length > 0 ? [...userMusic, ...staticDefaultPlaylist] : staticDefaultPlaylist);
-      setCurrentTrackIndex(0);
+      setPlaylist([...userMusic, ...staticDefaultPlaylist]);
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
@@ -211,6 +210,21 @@ export default function MusicPage() {
         audio.pause();
     }
   }, [isPlaying]);
+
+    
+  useEffect(() => {
+      const audio = audioRef.current;
+      if (audio && currentTrack) {
+          audio.src = currentTrack.audioUrl;
+          audio.load();
+          if (isPlaying) {
+             // onCanPlay will handle the play
+          }
+      } else if (audio) {
+          audio.pause();
+          audio.src = '';
+      }
+  }, [currentTrack]);
   
   const generateShuffledIndices = useCallback(() => {
     const indices = Array.from(Array(playlist.length).keys());
@@ -268,19 +282,6 @@ export default function MusicPage() {
         generateShuffledIndices();
       }
   }, [playlist.length, isShuffled, generateShuffledIndices]);
-  
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio && currentTrack?.audioUrl) {
-      if (audio.src !== currentTrack.audioUrl) {
-        audio.src = currentTrack.audioUrl;
-        audio.load();
-      }
-    } else if (audio && !currentTrack) {
-      audio.pause();
-      audio.src = '';
-    }
-  }, [currentTrack]);
 
   const handleProgressChange = (value: number[]) => {
     if (audioRef.current) {
@@ -394,9 +395,8 @@ export default function MusicPage() {
     <audio
         ref={audioRef}
         crossOrigin="anonymous"
-        preload="auto"
         onEnded={onEnded}
-        onCanPlay={onCanPlay}
+        onLoadedMetadata={onCanPlay}
         onTimeUpdate={onTimeUpdate}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
