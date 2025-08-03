@@ -30,7 +30,7 @@ interface Track {
   createdAt?: any;
 }
 
-const defaultPlaylist: Omit<Track, 'id' | 'ownerId' | 'createdAt'>[] = [
+const defaultPlaylistData: Omit<Track, 'id' | 'ownerId' | 'createdAt'>[] = [
     {
         title: "Inspiring Dreams",
         artist: "AudioCoffee",
@@ -83,9 +83,10 @@ export default function MusicPage() {
   // Fetch user's music from Firestore
   useEffect(() => {
     setIsLoading(true);
-    const staticDefaultPlaylist = defaultPlaylist.map((t, i) => ({...t, id: `default-${i}`}));
+    setCurrentTrackIndex(0); // Reset index on user change
 
     if (!user) {
+        const staticDefaultPlaylist = defaultPlaylistData.map((t, i) => ({...t, id: `default-${i}`}));
         setPlaylist(staticDefaultPlaylist);
         setIsLoading(false);
         return;
@@ -95,12 +96,12 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist([...userMusic, ...staticDefaultPlaylist]);
+      setPlaylist(userMusic);
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
         toast({ title: "Lỗi", description: "Không thể tải nhạc của bạn.", variant: 'destructive' });
-        setPlaylist(staticDefaultPlaylist);
+        setPlaylist([]); // Set to empty on error
         setIsLoading(false);
     });
 
@@ -108,10 +109,10 @@ export default function MusicPage() {
   }, [user, toast]);
   
   const currentTrack = useMemo(() => {
-      if (playlist.length === 0) return null;
+      if (playlist.length === 0 || isLoading) return null;
       const index = isShuffled ? shuffledIndices[currentTrackIndex] : currentTrackIndex;
       return playlist[index] || null;
-  }, [currentTrackIndex, playlist, isShuffled, shuffledIndices]);
+  }, [currentTrackIndex, playlist, isShuffled, shuffledIndices, isLoading]);
   
   // Audio Visualizer effect
   useEffect(() => {
@@ -174,7 +175,7 @@ export default function MusicPage() {
   };
 
   const handlePlayPause = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || isLoading) return;
     if (isPlaying) {
       audioRef.current.pause();
     } else {
@@ -452,29 +453,29 @@ export default function MusicPage() {
                     max={duration || 1}
                     onValueChange={handleProgressChange}
                     className="my-2"
-                    disabled={!currentTrack}
+                    disabled={!currentTrack || isLoading}
                 />
 
                 <div className="flex justify-center items-center gap-4 mt-4">
-                     <Button variant="ghost" size="icon" onClick={handleShuffleToggle} className={cn(isShuffled && "text-primary")} disabled={!currentTrack}>
+                     <Button variant="ghost" size="icon" onClick={handleShuffleToggle} className={cn(isShuffled && "text-primary")} disabled={!currentTrack || isLoading}>
                         <Shuffle />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handlePrev} disabled={!currentTrack}>
+                    <Button variant="ghost" size="icon" onClick={handlePrev} disabled={!currentTrack || isLoading}>
                         <SkipBack />
                     </Button>
-                    <Button size="lg" className="w-16 h-16 rounded-full" onClick={handlePlayPause} disabled={!currentTrack}>
+                    <Button size="lg" className="w-16 h-16 rounded-full" onClick={handlePlayPause} disabled={!currentTrack || isLoading}>
                         {isPlaying ? <Pause className="w-8 h-8"/> : <Play className="w-8 h-8"/>}
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleNext} disabled={!currentTrack}>
+                    <Button variant="ghost" size="icon" onClick={handleNext} disabled={!currentTrack || isLoading}>
                         <SkipForward />
                     </Button>
-                     <Button variant="ghost" size="icon" onClick={cycleRepeatMode} className={cn(repeatMode !== 'off' && "text-primary")} disabled={!currentTrack}>
+                     <Button variant="ghost" size="icon" onClick={cycleRepeatMode} className={cn(repeatMode !== 'off' && "text-primary")} disabled={!currentTrack || isLoading}>
                         {repeatMode === 'one' ? <Repeat1 /> : <Repeat />}
                     </Button>
                 </div>
 
                 <div className="flex items-center gap-2 mt-6">
-                    <Button variant="ghost" size="icon" onClick={() => handleVolumeChange([volume > 0 ? 0 : 0.75])} disabled={!currentTrack}>
+                    <Button variant="ghost" size="icon" onClick={() => handleVolumeChange([volume > 0 ? 0 : 0.75])} disabled={!currentTrack || isLoading}>
                         {volume === 0 ? <VolumeX /> : <Volume2 />}
                     </Button>
                     <Slider
@@ -482,7 +483,7 @@ export default function MusicPage() {
                         max={1}
                         step={0.01}
                         onValueChange={handleVolumeChange}
-                        disabled={!currentTrack}
+                        disabled={!currentTrack || isLoading}
                     />
                 </div>
            </div>
