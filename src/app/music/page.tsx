@@ -125,13 +125,16 @@ export default function MusicPage() {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
             audioContextRef.current = context;
             analyserRef.current = context.createAnalyser();
-            sourceRef.current = context.createMediaElementSource(audioRef.current);
-
-            sourceRef.current.connect(analyserRef.current);
-            analyserRef.current.connect(context.destination);
             analyserRef.current.fftSize = 128;
+            
+            // Check if sourceRef is already connected
+            if (!sourceRef.current) {
+                 sourceRef.current = context.createMediaElementSource(audioRef.current);
+                 sourceRef.current.connect(analyserRef.current);
+                 analyserRef.current.connect(context.destination);
+            }
         } catch (e) {
-            console.warn("Web Audio API is not supported in this browser or already connected.");
+            console.warn("Web Audio API is not supported or already connected:", e);
         }
     }
   }, []);
@@ -177,6 +180,7 @@ export default function MusicPage() {
   }, [isPlaying]);
 
   const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return "0:00";
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
@@ -256,6 +260,32 @@ export default function MusicPage() {
         generateShuffledIndices();
       }
   }, [playlist.length, isShuffled, generateShuffledIndices]);
+  
+  // Imperatively control the audio source
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      if (currentTrack?.audioUrl) {
+        if (audio.src !== currentTrack.audioUrl) {
+          audio.src = currentTrack.audioUrl;
+          audio.load(); // Important: tell the browser to load the new source
+        }
+        if (isPlaying) {
+           // Resume AudioContext if it's suspended
+            if (audioContextRef.current?.state === 'suspended') {
+                audioContextRef.current.resume();
+            }
+            audio.play().catch(e => {
+              console.error("Playback error on track change:", e)
+              setIsPlaying(false);
+            });
+        }
+      } else {
+        audio.pause();
+      }
+    }
+  }, [currentTrack, isPlaying]);
+
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -268,13 +298,15 @@ export default function MusicPage() {
 
         audio.addEventListener('loadeddata', setAudioData);
         audio.addEventListener('timeupdate', setAudioTime);
+        audio.addEventListener('ended', onEnded);
         
         return () => {
           audio.removeEventListener('loadeddata', setAudioData);
           audio.removeEventListener('timeupdate', setAudioTime);
+          audio.removeEventListener('ended', onEnded);
         }
     }
-  }, []);
+  }, [onEnded]);
 
 
   const handleProgressChange = (value: number[]) => {
@@ -370,14 +402,8 @@ export default function MusicPage() {
     <>
     <audio
         ref={audioRef}
-        key={currentTrack?.id}
-        src={currentTrack?.audioUrl}
         crossOrigin="anonymous"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={onEnded}
         preload="auto"
-        autoPlay={isPlaying}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
@@ -556,7 +582,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-    
-
-    
