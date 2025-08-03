@@ -60,7 +60,7 @@ export default function MusicPage() {
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const visualizerRef = useRef<HTMLCanvasElement>(null);
+  const visualizerRef = useRef<HTMLCanvasElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -72,7 +72,7 @@ export default function MusicPage() {
   const [volume, setVolume] = useState(0.75);
   const [duration, setDuration] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploading, setIsUploading] = useState(isUploading);
   const [isLoading, setIsLoading] = useState(true);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
@@ -100,14 +100,8 @@ export default function MusicPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const userMusic = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Track));
-      setPlaylist(userMusic);
-      
-      // Reset index if playlist is empty, otherwise stay at 0
+      setPlaylist(userMusic.length > 0 ? userMusic : staticDefaultPlaylist);
       setCurrentTrackIndex(0);
-
-      if (userMusic.length === 0) {
-        setPlaylist(staticDefaultPlaylist);
-      }
       setIsLoading(false);
     }, (error) => {
         console.error("Error fetching user music:", error);
@@ -139,14 +133,24 @@ export default function MusicPage() {
     if (audioRef.current && !audioContextRef.current) {
         try {
             const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const source = context.createMediaElementSource(audioRef.current);
+            const analyser = context.createAnalyser();
+            
+            source.connect(analyser);
+            analyser.connect(context.destination);
+            analyser.fftSize = 128;
+            
             audioContextRef.current = context;
-            analyserRef.current = context.createAnalyser();
-            analyserRef.current.fftSize = 128;
-            sourceRef.current = context.createMediaElementSource(audioRef.current);
-            sourceRef.current.connect(analyserRef.current);
-            analyserRef.current.connect(context.destination);
+            sourceRef.current = source;
+            analyserRef.current = analyser;
+
         } catch (e) {
             console.warn("Web Audio API is not supported or failed to initialize:", e);
+             if (e instanceof DOMException && e.name === "InvalidStateError") {
+                // This can happen on hot-reloads. We can try to disconnect the old source if it exists.
+                // For simplicity, we'll just log it for now.
+                console.error("AudioContext setup failed: Media element already connected.");
+            }
         }
     }
   }, []);
@@ -211,17 +215,10 @@ export default function MusicPage() {
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-      // Don't change src if it's the same url
       if (audio.src !== currentTrack.audioUrl) {
-          audio.src = currentTrack.audioUrl;
-          audio.load();
+        audio.src = currentTrack.audioUrl;
+        audio.load();
       }
-    } else if (audio && !currentTrack) {
-      audio.pause();
-      audio.src = '';
-      setProgress(0);
-      setDuration(0);
-      setIsPlaying(false);
     }
   }, [currentTrack]);
   
@@ -233,7 +230,8 @@ export default function MusicPage() {
     if (isPlaying) {
       audio.play().catch(e => {
         console.error("Playback error:", e);
-        setIsPlaying(false);
+        // Don't set isPlaying to false here, as it might be a temporary issue
+        // that onCanPlay handler can recover from.
       });
     } else {
       audio.pause();
@@ -250,11 +248,10 @@ export default function MusicPage() {
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
     
-    // First time interaction requires AudioContext resume
+    setupAudioContext(); // Setup on first play interaction
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     }
-    setupAudioContext(); // Setup on first play
     
     setIsPlaying(!isPlaying);
   };
@@ -411,7 +408,8 @@ export default function MusicPage() {
         if (isPlaying) {
              audioRef.current.play().catch(e => {
                 console.error("Playback error onCanPlay:", e);
-                setIsPlaying(false);
+                // If play fails here, it's likely due to browser policy.
+                // We'll keep isPlaying true, so user can manually retry.
              });
         }
       }
@@ -457,7 +455,15 @@ export default function MusicPage() {
                                 className={cn(
                                     "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors"
                                 )}
-                                onClick={() => setCurrentTrackIndex(isShuffled ? shuffledIndices.findIndex(i => i === index) : index)}
+                                onClick={() => {
+                                    const targetIndex = isShuffled ? shuffledIndices.findIndex(i => i === index) : index;
+                                    if(currentTrackIndex === targetIndex){
+                                        handlePlayPause();
+                                    } else {
+                                        setCurrentTrackIndex(targetIndex);
+                                        setIsPlaying(true);
+                                    }
+                                }}
                             >
                                 <Image src={track.albumArtUrl} alt={track.title} width={40} height={40} className="rounded-md" data-ai-hint={track.dataAiHint as string | undefined} />
                                 <div className="flex-1 truncate">
@@ -609,3 +615,5 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
