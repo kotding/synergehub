@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Upload, Repeat, Repeat1, Shuffle, ListMusic, Music2, Pencil, Save, Loader2, Trash2, ImagePlus, Expand
+  Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Upload, Repeat, Repeat1, Shuffle, ListMusic, Music2, Pencil, Save, Loader2, Trash2, ImagePlus, Expand, Shrink
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -180,7 +180,7 @@ export default function MusicPage() {
             
             source.connect(analyser);
             analyser.connect(context.destination);
-            analyser.fftSize = 128;
+            analyser.fftSize = 256; // Increased for more detail
             
             audioContextRef.current = context;
             sourceRef.current = source;
@@ -193,48 +193,50 @@ export default function MusicPage() {
   }, []);
 
   const drawVisualizer = useCallback(() => {
-    if (!isPlaying || !visualizerRef.current || !analyserRef.current) {
-        setAlbumArtScale(1);
-        return;
-    }
+      if (!visualizerRef.current || !analyserRef.current) return;
 
-    const analyser = analyserRef.current;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    const canvas = visualizerRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Calculate average for pulsing effect
-    analyser.getByteTimeDomainData(dataArray);
-    const sum = dataArray.reduce((a, b) => a + b, 0);
-    const average = sum / bufferLength;
-    const normalizedAverage = (average - 128) / 128; // Normalize from -1 to 1
-    const newScale = 1 + Math.abs(normalizedAverage) * 0.05; // Subtle pulse effect
-    setAlbumArtScale(newScale);
+      const analyser = analyserRef.current;
+      const canvas = visualizerRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
 
-    const renderFrame = () => {
-      animationFrameRef.current = requestAnimationFrame(renderFrame);
-      analyser.getByteFrequencyData(dataArray);
+      const renderFrame = () => {
+          animationFrameRef.current = requestAnimationFrame(renderFrame);
+          analyser.getByteFrequencyData(dataArray);
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const barWidth = (canvas.width / bufferLength) * 1.5;
-      let x = 0;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          let sum = 0;
+          const barWidth = (canvas.width / bufferLength) * 1.5;
+          let x = 0;
 
-      for (let i = 0; i < bufferLength; i++) {
-        const barHeight = dataArray[i] / 2;
-        const hue = (i / bufferLength) * 360;
-        ctx.fillStyle = `hsla(${hue}, 100%, 70%, 0.6)`;
-        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-        x += barWidth + 1;
-      }
-    };
-    renderFrame();
+          for (let i = 0; i < bufferLength; i++) {
+              const barHeight = dataArray[i];
+              sum += barHeight;
+              
+              const hue = (i / bufferLength) * 360;
+              ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
+              ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+              x += barWidth + 1;
+          }
+
+          // Update album art scale based on average volume
+          if (isPlaying) {
+              const average = sum / bufferLength;
+              const newScale = 1 + (average / 256) * 0.07; // More sensitive pulse
+              setAlbumArtScale(newScale);
+          }
+      };
+      renderFrame();
   }, [isPlaying]);
+
 
   // Effect to handle starting/stopping the visualizer
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && analyserRef.current) {
         drawVisualizer();
     } else {
         if (animationFrameRef.current) {
@@ -551,7 +553,7 @@ export default function MusicPage() {
         {/* Main Player View */}
         <main className={cn("flex-1 flex flex-col items-center justify-center p-8 gap-8 relative transition-all duration-300", isVisualizeOnly && "w-full")}>
            <div className="absolute inset-0 z-0">
-                <canvas ref={visualizerRef} className="w-full h-full opacity-50"></canvas>
+                <canvas ref={visualizerRef} className="w-full h-full"></canvas>
             </div>
 
            <div className="relative z-10 flex flex-col items-center text-center">
@@ -563,7 +565,7 @@ export default function MusicPage() {
                         alt={currentTrack.title}
                         width={300}
                         height={300}
-                        className="rounded-lg shadow-2xl shadow-primary/20 object-cover aspect-square transition-transform duration-75"
+                        className="rounded-lg shadow-2xl shadow-primary/20 object-cover aspect-square transition-transform duration-200 ease-linear"
                         style={{ transform: `scale(${albumArtScale})` }}
                         data-ai-hint={currentTrack.dataAiHint as string | undefined}
                        />
@@ -623,11 +625,18 @@ export default function MusicPage() {
                         onValueChange={handleVolumeChange}
                         disabled={!currentTrack || isLoading}
                     />
-                    <Button variant="ghost" size="icon" onClick={() => setIsVisualizeOnly(v => !v)} disabled={!currentTrack || isLoading}>
-                        <Expand />
+                     <Button variant="ghost" size="icon" onClick={() => setIsVisualizeOnly(v => !v)} disabled={!currentTrack || isLoading}>
+                        {isVisualizeOnly ? <Shrink /> : <Expand />}
                     </Button>
                 </div>
            </div>
+            {isVisualizeOnly && (
+                <div className="absolute bottom-8 right-8 z-20">
+                    <Button variant="ghost" size="icon" className="text-white/50 hover:text-white hover:bg-white/10" onClick={() => setIsVisualizeOnly(false)}>
+                        <Shrink />
+                    </Button>
+                </div>
+            )}
         </main>
     </div>
     
@@ -755,12 +764,12 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="title">Tên bài hát</Label>
-                        <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                        <Label htmlFor="title-upload">Tên bài hát</Label>
+                        <Input id="title-upload" value={title} onChange={(e) => setTitle(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="artist">Nghệ sĩ</Label>
-                        <Input id="artist" value={artist} onChange={(e) => setArtist(e.target.value)} />
+                        <Label htmlFor="artist-upload">Nghệ sĩ</Label>
+                        <Input id="artist-upload" value={artist} onChange={(e) => setArtist(e.target.value)} />
                     </div>
 
                     <div className="space-y-2">
@@ -780,8 +789,8 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
 
                     <div className="space-y-2">
                         <Label>Tệp âm thanh</Label>
-                        <div className="overflow-hidden">
-                           <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
+                        <div className="overflow-hidden rounded-md border">
+                           <Button variant="ghost" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
                               <Music2 className="mr-2 h-4 w-4"/>
                               <span className="truncate">
                                   {audioFile ? audioFile.name : 'Chọn tệp âm thanh...'}
@@ -913,5 +922,3 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
-
-    
