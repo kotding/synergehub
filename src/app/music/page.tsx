@@ -107,7 +107,8 @@ export default function MusicPage() {
       const newPlaylist = userMusic.length > 0 ? userMusic : staticDefaultPlaylist;
       setPlaylist(newPlaylist);
       
-      const currentTrackStillExists = newPlaylist.some(t => t.id === (playlist[currentTrackIndex] && playlist[currentTrackIndex].id));
+      const currentTrackId = playlist[currentTrackIndex]?.id;
+      const currentTrackStillExists = newPlaylist.some(t => t.id === currentTrackId);
 
       if (!currentTrackStillExists) {
           setCurrentTrackIndex(0);
@@ -136,16 +137,17 @@ export default function MusicPage() {
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-      if (audio.src !== currentTrack.audioUrl) {
-        audio.src = currentTrack.audioUrl;
-        audio.load();
-        if (isPlaying) {
-          audio.play().catch(e => {
-            console.error("Playback error:", e)
-            // setIsPlaying(false); // Let the error handler manage this
-          });
+        // Only change src if it's different to prevent unnecessary reloads
+        if(audio.src !== currentTrack.audioUrl) {
+            audio.src = currentTrack.audioUrl;
+            audio.load(); // Explicitly load the new source
+            if(isPlaying){
+                 audio.play().catch(e => {
+                    // This catch is a fallback, the main handler is in handlePlayPause
+                    console.error("Playback error on src change:", e);
+                });
+            }
         }
-      }
     } else if (audio) {
         audio.pause();
         audio.src = '';
@@ -160,6 +162,7 @@ export default function MusicPage() {
     if (isPlaying) {
       audio.play().catch(e => {
         console.error("Playback error:", e);
+        // The handleAudioError function will show a toast to the user.
         setIsPlaying(false);
       });
     } else {
@@ -259,7 +262,6 @@ export default function MusicPage() {
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
     
-    // Resume AudioContext if it was suspended by browser policy
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     } else if (!audioContextRef.current) {
@@ -398,12 +400,13 @@ export default function MusicPage() {
   
   const handleSelectTrack = (index: number) => {
     const targetIndex = isShuffled ? shuffledIndices.findIndex(i => i === index) : index;
-    if (currentTrackIndex === targetIndex) {
+    if (currentTrackIndex === targetIndex && audioRef.current && audioRef.current.src) {
         handlePlayPause();
     } else {
         setCurrentTrackIndex(targetIndex);
         if(!isPlaying) {
-            handlePlayPause();
+          // This will trigger the play effect after src is set and loaded
+          setIsPlaying(true);
         }
     }
   }
@@ -416,13 +419,13 @@ export default function MusicPage() {
     if (error) {
         switch (error.code) {
             case error.MEDIA_ERR_ABORTED:
-                errorMessage = 'Việc tải âm thanh đã bị hủy.';
+                errorMessage = 'Việc tải âm thanh đã bị người dùng hủy.';
                 break;
             case error.MEDIA_ERR_NETWORK:
                 errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại cấu hình CORS trên Firebase Storage.';
                 break;
             case error.MEDIA_ERR_DECODE:
-                errorMessage = 'Không thể giải mã tệp âm thanh. Tệp có thể bị hỏng.';
+                errorMessage = 'Không thể giải mã tệp âm thanh. Tệp có thể bị hỏng hoặc không được hỗ trợ.';
                 break;
             case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
                 errorMessage = 'Không tìm thấy nguồn âm thanh được hỗ trợ. Điều này có thể do lỗi CORS hoặc URL không hợp lệ.';
@@ -874,4 +877,3 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
-
