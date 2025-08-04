@@ -81,6 +81,8 @@ export default function MusicPage() {
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [isShuffled, setIsShuffled] = useState(false);
   const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+  const [albumArtScale, setAlbumArtScale] = useState(1);
+  const [isVisualizeOnly, setIsVisualizeOnly] = useState(false);
   
   // Dialog states
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -137,18 +139,18 @@ export default function MusicPage() {
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-        if(audio.src !== currentTrack.audioUrl) {
-            audio.src = currentTrack.audioUrl;
-            audio.load();
-            if(isPlaying){
-                 audio.play().catch(e => {
-                    console.error("Playback error on src change:", e);
-                });
-            }
+      if (audio.src !== currentTrack.audioUrl) {
+        audio.src = currentTrack.audioUrl;
+        audio.load();
+        if (isPlaying) {
+          audio.play().catch(e => {
+            console.error("Playback error on src change:", e);
+          });
         }
+      }
     } else if (audio) {
-        audio.pause();
-        audio.removeAttribute('src');
+      audio.pause();
+      audio.removeAttribute('src');
     }
   }, [currentTrack, isPlaying]);
   
@@ -192,6 +194,7 @@ export default function MusicPage() {
 
   const drawVisualizer = useCallback(() => {
     if (!isPlaying || !visualizerRef.current || !analyserRef.current) {
+        setAlbumArtScale(1);
         return;
     }
 
@@ -201,6 +204,14 @@ export default function MusicPage() {
     const canvas = visualizerRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
+    // Calculate average for pulsing effect
+    analyser.getByteTimeDomainData(dataArray);
+    const sum = dataArray.reduce((a, b) => a + b, 0);
+    const average = sum / bufferLength;
+    const normalizedAverage = (average - 128) / 128; // Normalize from -1 to 1
+    const newScale = 1 + Math.abs(normalizedAverage) * 0.05; // Subtle pulse effect
+    setAlbumArtScale(newScale);
 
     const renderFrame = () => {
       animationFrameRef.current = requestAnimationFrame(renderFrame);
@@ -212,10 +223,8 @@ export default function MusicPage() {
 
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = dataArray[i] / 2;
-        const r = barHeight + 25 * (i / bufferLength);
-        const g = 250 * (i / bufferLength);
-        const b = 50;
-        ctx.fillStyle = `rgba(${r},${g},${b}, 0.6)`;
+        const hue = (i / bufferLength) * 360;
+        ctx.fillStyle = `hsla(${hue}, 100%, 70%, 0.6)`;
         ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
         x += barWidth + 1;
       }
@@ -231,6 +240,7 @@ export default function MusicPage() {
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
         }
+        setAlbumArtScale(1);
         const canvas = visualizerRef.current;
         if (canvas) {
             const ctx = canvas.getContext('2d');
@@ -404,6 +414,7 @@ export default function MusicPage() {
     } else {
         setCurrentTrackIndex(targetIndex);
         if(!isPlaying) {
+          setupAudioContext();
           setIsPlaying(true);
         }
     }
@@ -457,7 +468,10 @@ export default function MusicPage() {
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
-        <aside className="w-1/3 lg:w-1/4 h-full flex flex-col border-r border-border bg-card/30">
+        <aside className={cn(
+          "w-1/3 lg:w-1/4 h-full flex flex-col border-r border-border bg-card/30 transition-all duration-300",
+          isVisualizeOnly && "-ml-[33.333333%] lg:-ml-[25%]"
+        )}>
             <div className="p-4 border-b border-border flex justify-between items-center">
                 <h2 className="text-xl font-bold flex items-center gap-2"><ListMusic /> Danh sách phát</h2>
                 <Button variant="ghost" size="icon" onClick={() => setIsUploadDialogOpen(true)} disabled={isSaving || !user} title={user ? "Tải nhạc lên" : "Đăng nhập để tải nhạc lên"}>
@@ -535,7 +549,7 @@ export default function MusicPage() {
         </aside>
 
         {/* Main Player View */}
-        <main className="flex-1 flex flex-col items-center justify-center p-8 gap-8 relative">
+        <main className={cn("flex-1 flex flex-col items-center justify-center p-8 gap-8 relative transition-all duration-300", isVisualizeOnly && "w-full")}>
            <div className="absolute inset-0 z-0">
                 <canvas ref={visualizerRef} className="w-full h-full opacity-50"></canvas>
             </div>
@@ -549,12 +563,15 @@ export default function MusicPage() {
                         alt={currentTrack.title}
                         width={300}
                         height={300}
-                        className="rounded-lg shadow-2xl shadow-primary/20 object-cover aspect-square"
+                        className="rounded-lg shadow-2xl shadow-primary/20 object-cover aspect-square transition-transform duration-75"
+                        style={{ transform: `scale(${albumArtScale})` }}
                         data-ai-hint={currentTrack.dataAiHint as string | undefined}
                        />
                     </div>
-                    <h1 className="text-3xl font-bold">{currentTrack.title}</h1>
-                    <p className="text-lg text-muted-foreground mt-1">{currentTrack.artist}</p>
+                    <div className={cn("transition-opacity duration-300", isVisualizeOnly && "opacity-0")}>
+                        <h1 className="text-3xl font-bold">{currentTrack.title}</h1>
+                        <p className="text-lg text-muted-foreground mt-1">{currentTrack.artist}</p>
+                    </div>
                     </>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-[380px] text-muted-foreground">
@@ -564,7 +581,7 @@ export default function MusicPage() {
                 )}
            </div>
 
-           <div className="w-full max-w-md z-10">
+           <div className={cn("w-full max-w-md z-10 transition-opacity duration-300", isVisualizeOnly && "opacity-0")}>
                 <div className="flex justify-between items-center text-xs text-muted-foreground">
                     <span>{formatTime(currentTime)}</span>
                     <span>{formatTime(duration)}</span>
@@ -606,6 +623,9 @@ export default function MusicPage() {
                         onValueChange={handleVolumeChange}
                         disabled={!currentTrack || isLoading}
                     />
+                    <Button variant="ghost" size="icon" onClick={() => setIsVisualizeOnly(v => !v)} disabled={!currentTrack || isLoading}>
+                        <Expand />
+                    </Button>
                 </div>
            </div>
         </main>
@@ -649,6 +669,8 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
         setAudioFile(null);
         setImageFile(null);
         setImagePreview(null);
+        if (audioInputRef.current) audioInputRef.current.value = "";
+        if (imageInputRef.current) imageInputRef.current.value = "";
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -758,12 +780,14 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
 
                     <div className="space-y-2">
                         <Label>Tệp âm thanh</Label>
-                         <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
-                            <Music2 className="mr-2 h-4 w-4"/>
-                            <span className="truncate">
-                                {audioFile ? audioFile.name : 'Chọn tệp âm thanh...'}
-                            </span>
-                        </Button>
+                        <div className="overflow-hidden">
+                           <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
+                              <Music2 className="mr-2 h-4 w-4"/>
+                              <span className="truncate">
+                                  {audioFile ? audioFile.name : 'Chọn tệp âm thanh...'}
+                              </span>
+                          </Button>
+                        </div>
                         <input type="file" ref={audioInputRef} onChange={handleAudioChange} className="hidden" accept="audio/*" />
                     </div>
                 </div>
@@ -889,3 +913,5 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
+
+    
