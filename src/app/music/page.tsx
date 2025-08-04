@@ -445,7 +445,7 @@ export default function MusicPage() {
                 errorMessage = 'Việc tải âm thanh đã bị hủy.';
                 break;
             case error.MEDIA_ERR_NETWORK:
-                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh.';
+                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại CORS trên Firebase Storage.';
                 break;
             case error.MEDIA_ERR_DECODE:
                 errorMessage = 'Không thể giải mã tệp âm thanh. Tệp có thể bị hỏng.';
