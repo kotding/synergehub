@@ -415,8 +415,6 @@ export default function MusicPage() {
   }
 
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
-    // This function now primarily handles non-CORS errors,
-    // as CORS issues would ideally be solved server-side.
     if (!audioRef.current) return;
     
     const error = audioRef.current.error;
@@ -744,10 +742,10 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
                            <AvatarImage src={imagePreview ?? "/images/default_music_icon.png"} className="object-cover" />
                            <AvatarFallback><Music2/></AvatarFallback>
                         </Avatar>
-                        <div className="flex-1 space-y-2">
+                        <div className="flex-1 space-y-2 overflow-hidden">
                              <Button variant="outline" className="w-full" onClick={() => imageInputRef.current?.click()}><ImagePlus className="mr-2"/>Chọn ảnh bìa</Button>
                              <Button variant="outline" className="w-full" onClick={() => audioInputRef.current?.click()}>Chọn tệp âm thanh</Button>
-                             {audioFile && <p className="text-xs text-muted-foreground truncate">Đã chọn: {audioFile.name}</p>}
+                             {audioFile && <p className="text-xs text-muted-foreground truncate" title={audioFile.name}>Đã chọn: {audioFile.name}</p>}
                         </div>
                         <input type="file" ref={imageInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
                         <input type="file" ref={audioInputRef} onChange={handleAudioChange} className="hidden" accept="audio/*" />
@@ -883,5 +881,7 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
+
+    
 
     
