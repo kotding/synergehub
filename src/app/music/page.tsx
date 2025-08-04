@@ -423,7 +423,7 @@ export default function MusicPage() {
     if (error) {
         switch (error.code) {
             case error.MEDIA_ERR_ABORTED:
-                errorMessage = 'Việc tải âm thanh đã bị người dùng hủy.';
+                errorMessage = 'Việc tải âm thanh đã bị người dùng hủy bỏ.';
                 break;
             case error.MEDIA_ERR_NETWORK:
                 errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại kết nối và cấu hình CORS trên Firebase Storage.';
@@ -881,6 +881,8 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
+
+    
 
     
 
