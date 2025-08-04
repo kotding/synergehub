@@ -126,7 +126,7 @@ export default function MusicPage() {
       if (audio.src !== currentTrack.audioUrl) {
         audio.src = currentTrack.audioUrl;
         audio.load();
-        setIsPlaying(true); // Attempt to play when track changes
+        // Don't play here, let the `isPlaying` effect handle it.
       }
     }
   }, [currentTrack]);
@@ -139,12 +139,20 @@ export default function MusicPage() {
     if (isPlaying) {
       audio.play().catch(e => {
         console.error("Playback error:", e);
-        // Don't set isPlaying to false here, as onCanPlay might handle it
+        // This error is often a NotAllowedError, we can inform the user.
+        if (e.name === "NotAllowedError") {
+            toast({
+                title: "Lỗi phát nhạc",
+                description: "Trình duyệt yêu cầu tương tác của người dùng trước khi phát âm thanh. Vui lòng nhấn nút play.",
+                variant: "destructive"
+            });
+        }
+        setIsPlaying(false); // Revert state if play fails
       });
     } else {
       audio.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, toast]);
 
   const setupAudioContext = useCallback(() => {
     if (audioRef.current && !sourceRef.current) {
@@ -238,7 +246,12 @@ export default function MusicPage() {
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
     
-    setupAudioContext(); 
+    // Initialize audio context on first user interaction
+    if (!audioContextRef.current) {
+      setupAudioContext(); 
+    }
+    
+    // Resume context if it's suspended
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     }
@@ -413,6 +426,17 @@ export default function MusicPage() {
           setCurrentTime(audioRef.current.currentTime);
       }
   }
+  
+  const handleSelectTrack = (index: number) => {
+    const targetIndex = isShuffled ? shuffledIndices.findIndex(i => i === index) : index;
+    if (currentTrackIndex === targetIndex) {
+        handlePlayPause();
+    } else {
+        setCurrentTrackIndex(targetIndex);
+        setIsPlaying(true); // Set intent to play, the useEffect will handle the rest.
+    }
+  }
+
 
   return (
     <>
@@ -423,6 +447,14 @@ export default function MusicPage() {
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         onCanPlay={onCanPlay}
+        onError={(e) => {
+            console.error("Audio Element Error:", e);
+            toast({
+                title: "Lỗi tải âm thanh",
+                description: "Không thể tải tệp âm thanh. Vui lòng kiểm tra lại CORS trên Firebase Storage.",
+                variant: "destructive"
+            });
+        }}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
@@ -449,15 +481,7 @@ export default function MusicPage() {
                                 className={cn(
                                     "w-full text-left p-3 flex items-center gap-3 hover:bg-accent transition-colors"
                                 )}
-                                onClick={() => {
-                                    const targetIndex = isShuffled ? shuffledIndices.findIndex(i => i === index) : index;
-                                    if(currentTrackIndex === targetIndex){
-                                        handlePlayPause();
-                                    } else {
-                                        setCurrentTrackIndex(targetIndex);
-                                        // isPlaying will be handled by the onCanPlay event
-                                    }
-                                }}
+                                onClick={() => handleSelectTrack(index)}
                             >
                                 <Image src={track.albumArtUrl} alt={track.title} width={40} height={40} className="rounded-md" data-ai-hint={track.dataAiHint as string | undefined} />
                                 <div className="flex-1 truncate">
