@@ -10,7 +10,7 @@ import { ArrowLeft, Search, Gamepad2 } from 'lucide-react';
 import Image from 'next/image';
 
 const allGames = [
-  { id: 1, title: 'Flappy Bird', description: 'Navigate the bird through the pipes.', imageUrl: 'https://placehold.co/400x300.png', dataAiHint: 'flappy bird', href: '/gaming/flappy-bird' },
+  { id: 1, title: 'Flappy Bird', description: 'Navigate the bird through the pipes.', imageUrl: '/images/flappy_bird_banner.jpeg', dataAiHint: 'flappy bird', href: '/gaming/flappy-bird' },
   // Future games will be added here
 ];
 
