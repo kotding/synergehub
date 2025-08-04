@@ -126,7 +126,6 @@ export default function MusicPage() {
       if (audio.src !== currentTrack.audioUrl) {
         audio.src = currentTrack.audioUrl;
         audio.load();
-        // Don't play here, let the `isPlaying` effect handle it.
       }
     }
   }, [currentTrack]);
@@ -139,15 +138,14 @@ export default function MusicPage() {
     if (isPlaying) {
       audio.play().catch(e => {
         console.error("Playback error:", e);
-        // This error is often a NotAllowedError, we can inform the user.
         if (e.name === "NotAllowedError") {
             toast({
                 title: "Lỗi phát nhạc",
-                description: "Trình duyệt yêu cầu tương tác của người dùng trước khi phát âm thanh. Vui lòng nhấn nút play.",
+                description: "Trình duyệt yêu cầu tương tác của người dùng trước khi phát âm thanh.",
                 variant: "destructive"
             });
         }
-        setIsPlaying(false); // Revert state if play fails
+        setIsPlaying(false);
       });
     } else {
       audio.pause();
@@ -246,12 +244,10 @@ export default function MusicPage() {
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
     
-    // Initialize audio context on first user interaction
     if (!audioContextRef.current) {
       setupAudioContext(); 
     }
     
-    // Resume context if it's suspended
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
     }
@@ -415,7 +411,6 @@ export default function MusicPage() {
     if (audioRef.current && isPlaying) {
         audioRef.current.play().catch(e => {
            console.error("Playback error onCanPlay:", e);
-           // If playback fails here, we can set isPlaying to false to reflect the state
            setIsPlaying(false);
         });
     }
@@ -433,8 +428,43 @@ export default function MusicPage() {
         handlePlayPause();
     } else {
         setCurrentTrackIndex(targetIndex);
-        setIsPlaying(true); // Set intent to play, the useEffect will handle the rest.
+        if(!isPlaying) {
+            setIsPlaying(true);
+        }
     }
+  }
+
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    const audioEl = e.currentTarget;
+    const error = audioEl.error;
+    let errorMessage = "Đã xảy ra lỗi không xác định khi tải âm thanh.";
+    
+    if (error) {
+        switch (error.code) {
+            case error.MEDIA_ERR_ABORTED:
+                errorMessage = 'Việc tải âm thanh đã bị hủy.';
+                break;
+            case error.MEDIA_ERR_NETWORK:
+                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh.';
+                break;
+            case error.MEDIA_ERR_DECODE:
+                errorMessage = 'Không thể giải mã tệp âm thanh. Tệp có thể bị hỏng.';
+                break;
+            case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = 'Không tìm thấy nguồn âm thanh được hỗ trợ. Điều này có thể do lỗi CORS hoặc URL không hợp lệ.';
+                break;
+            default:
+                errorMessage = `Đã xảy ra một lỗi không xác định: mã ${error.code}`;
+                break;
+        }
+    }
+    
+    console.error("Audio Element Error:", error);
+    toast({
+        title: "Lỗi tải âm thanh",
+        description: errorMessage,
+        variant: "destructive"
+    });
   }
 
 
@@ -447,14 +477,7 @@ export default function MusicPage() {
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         onCanPlay={onCanPlay}
-        onError={(e) => {
-            console.error("Audio Element Error:", e);
-            toast({
-                title: "Lỗi tải âm thanh",
-                description: "Không thể tải tệp âm thanh. Vui lòng kiểm tra lại CORS trên Firebase Storage.",
-                variant: "destructive"
-            });
-        }}
+        onError={handleAudioError}
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
@@ -633,3 +656,5 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
