@@ -218,10 +218,12 @@ export default function MusicPage() {
               sum += barHeight;
               
               const hue = (i / bufferLength) * 360;
-              if (isVisualizeOnly) {
-                 ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.8)`;
+               if (isVisualizeOnly) {
+                 // Bold, sharp colors for visualize only mode
+                 ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
               } else {
-                 ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
+                 // Paler, more subtle colors for normal mode
+                 ctx.fillStyle = `hsl(${hue}, 70%, 75%)`;
               }
               
               ctx.fillRect(x, canvas.height - barHeight / 4, barWidth, barHeight / 4);
@@ -230,7 +232,7 @@ export default function MusicPage() {
 
           if (isPlaying) {
               const average = sum / bufferLength;
-              const newScale = 1 + (average / 256) * 0.15; // Increased sensitivity
+              const newScale = 1 + (average / 256) * 0.25; // Increased sensitivity for stronger effect
               setAlbumArtScale(newScale);
           }
       };
@@ -429,6 +431,11 @@ export default function MusicPage() {
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     if (!audioRef.current) return;
     
+    // Prevent toast on empty src at initialization
+    if (!audioRef.current.currentSrc) {
+        return;
+    }
+
     const error = audioRef.current.error;
     let errorMessage = "Đã xảy ra lỗi không xác định khi tải âm thanh.";
     
@@ -569,7 +576,7 @@ export default function MusicPage() {
                         alt={currentTrack.title}
                         width={300}
                         height={300}
-                        className="rounded-lg shadow-2xl shadow-primary/20 object-cover aspect-square transition-transform duration-200 ease-linear"
+                        className="rounded-full shadow-2xl shadow-primary/20 object-cover aspect-square transition-transform duration-200 ease-linear"
                         style={{ transform: `scale(${albumArtScale})` }}
                         data-ai-hint={currentTrack.dataAiHint as string | undefined}
                        />
