@@ -222,8 +222,8 @@ export default function MusicPage() {
                  // Bold, sharp colors for visualize only mode
                  ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
               } else {
-                 // Paler, more subtle colors for normal mode
-                 ctx.fillStyle = `hsl(${hue}, 70%, 75%)`;
+                 // Balanced, easier-on-the-eyes colors for normal mode
+                 ctx.fillStyle = `hsl(${hue}, 80%, 65%)`;
               }
               
               ctx.fillRect(x, canvas.height - barHeight / 4, barWidth, barHeight / 4);
@@ -232,8 +232,10 @@ export default function MusicPage() {
 
           if (isPlaying) {
               const average = sum / bufferLength;
-              const newScale = 1 + (average / 256) * 0.25; // Increased sensitivity for stronger effect
+              const newScale = 1 + (average / 256) * 0.25;
               setAlbumArtScale(newScale);
+          } else {
+              setAlbumArtScale(1);
           }
       };
       renderFrame();
@@ -933,3 +935,4 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
 }
 
     
+
