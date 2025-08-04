@@ -419,7 +419,7 @@ export default function MusicPage() {
                 errorMessage = 'Việc tải âm thanh đã bị hủy.';
                 break;
             case error.MEDIA_ERR_NETWORK:
-                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại CORS trên Firebase Storage.';
+                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại cấu hình CORS trên Firebase Storage.';
                 break;
             case error.MEDIA_ERR_DECODE:
                 errorMessage = 'Không thể giải mã tệp âm thanh. Tệp có thể bị hỏng.';
@@ -428,7 +428,7 @@ export default function MusicPage() {
                 errorMessage = 'Không tìm thấy nguồn âm thanh được hỗ trợ. Điều này có thể do lỗi CORS hoặc URL không hợp lệ.';
                 break;
             default:
-                errorMessage = `Đã xảy ra một lỗi không xác định: mã ${error.code}`;
+                errorMessage = `Đã xảy ra một lỗi không xác định: mã ${error.code}. Thông báo: ${error.message}`;
                 break;
         }
     }
@@ -874,3 +874,4 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
+
