@@ -123,6 +123,7 @@ export default function MusicPage() {
     });
 
     return () => unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, toast]);
   
   const currentTrack = useMemo(() => {
@@ -139,7 +140,10 @@ export default function MusicPage() {
         audio.src = currentTrack.audioUrl;
         audio.load();
         if (isPlaying) {
-          audio.play().catch(e => console.error("Error playing new track:", e));
+          audio.play().catch(e => {
+            console.error("Playback error:", e)
+            // setIsPlaying(false); // Let the error handler manage this
+          });
         }
       }
     } else if (audio) {
@@ -161,7 +165,7 @@ export default function MusicPage() {
     } else {
       audio.pause();
     }
-  }, [isPlaying, toast]);
+  }, [isPlaying]);
 
   const setupAudioContext = useCallback(() => {
     if (audioRef.current && !sourceRef.current) {
@@ -255,12 +259,11 @@ export default function MusicPage() {
   const handlePlayPause = () => {
     if (!audioRef.current || !currentTrack) return;
     
-    if (!audioContextRef.current) {
-      setupAudioContext(); 
-    }
-    
+    // Resume AudioContext if it was suspended by browser policy
     if (audioContextRef.current?.state === 'suspended') {
         audioContextRef.current.resume();
+    } else if (!audioContextRef.current) {
+      setupAudioContext(); 
     }
     
     setIsPlaying(!isPlaying);
@@ -400,7 +403,7 @@ export default function MusicPage() {
     } else {
         setCurrentTrackIndex(targetIndex);
         if(!isPlaying) {
-            setIsPlaying(true);
+            handlePlayPause();
         }
     }
   }
@@ -443,12 +446,12 @@ export default function MusicPage() {
     <>
     <audio
         ref={audioRef}
-        crossOrigin="anonymous"
         onEnded={onEnded}
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
         onCanPlay={onCanPlay}
         onError={handleAudioError}
+        crossOrigin="anonymous"
     />
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
         {/* Playlist Sidebar */}
