@@ -122,11 +122,11 @@ export default function MusicPage() {
   // Load new track source when currentTrack changes
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio && currentTrack?.audioUrl) {
-      if (audio.src !== currentTrack.audioUrl) {
-        audio.src = currentTrack.audioUrl;
-        audio.load();
-      }
+    if (audio && currentTrack) {
+        if (audio.src !== currentTrack.audioUrl) {
+            audio.src = currentTrack.audioUrl;
+            audio.load();
+        }
     }
   }, [currentTrack]);
   
@@ -390,14 +390,10 @@ export default function MusicPage() {
         audioRef.current.currentTime = 0;
         audioRef.current.play();
       }
-    } else if (repeatMode === 'all') {
-      handleNext();
-    } else { // 'off'
-      if (currentTrackIndex < playlist.length - 1) {
-        handleNext();
-      } else {
+    } else if (currentTrackIndex === playlist.length - 1 && repeatMode !== 'all') {
         setIsPlaying(false);
-      }
+    } else {
+        handleNext();
     }
   }, [repeatMode, handleNext, currentTrackIndex, playlist.length]);
 
@@ -657,3 +653,4 @@ export default function MusicPage() {
   );
 }
 
+    
