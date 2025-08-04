@@ -140,17 +140,17 @@ export default function MusicPage() {
         // Only change src if it's different to prevent unnecessary reloads
         if(audio.src !== currentTrack.audioUrl) {
             audio.src = currentTrack.audioUrl;
-            audio.load(); // Explicitly load the new source
+            audio.load();
             if(isPlaying){
                  audio.play().catch(e => {
-                    // This catch is a fallback, the main handler is in handlePlayPause
                     console.error("Playback error on src change:", e);
+                    // This catch is a fallback, the main handler is in handlePlayPause
                 });
             }
         }
     } else if (audio) {
         audio.pause();
-        audio.src = '';
+        audio.removeAttribute('src'); // Use removeAttribute to prevent "src=''" error
     }
   }, [currentTrack, isPlaying]);
   
@@ -160,11 +160,14 @@ export default function MusicPage() {
     if (!audio) return;
   
     if (isPlaying) {
-      audio.play().catch(e => {
-        console.error("Playback error:", e);
-        // The handleAudioError function will show a toast to the user.
-        setIsPlaying(false);
-      });
+      // Only play if there is a valid src
+      if (audio.currentSrc) {
+        audio.play().catch(e => {
+            console.error("Playback error:", e);
+            // The handleAudioError function will show a toast to the user.
+            setIsPlaying(false);
+        });
+      }
     } else {
       audio.pause();
     }
@@ -412,8 +415,11 @@ export default function MusicPage() {
   }
 
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
-    const audioEl = e.currentTarget;
-    const error = audioEl.error;
+    // This function now primarily handles non-CORS errors,
+    // as CORS issues would ideally be solved server-side.
+    if (!audioRef.current) return;
+    
+    const error = audioRef.current.error;
     let errorMessage = "Đã xảy ra lỗi không xác định khi tải âm thanh.";
     
     if (error) {
@@ -422,7 +428,7 @@ export default function MusicPage() {
                 errorMessage = 'Việc tải âm thanh đã bị người dùng hủy.';
                 break;
             case error.MEDIA_ERR_NETWORK:
-                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại cấu hình CORS trên Firebase Storage.';
+                errorMessage = 'Lỗi mạng đã ngăn không cho tải âm thanh. Vui lòng kiểm tra lại kết nối và cấu hình CORS trên Firebase Storage.';
                 break;
             case error.MEDIA_ERR_DECODE:
                 errorMessage = 'Không thể giải mã tệp âm thanh. Tệp có thể bị hỏng hoặc không được hỗ trợ.';
@@ -431,7 +437,7 @@ export default function MusicPage() {
                 errorMessage = 'Không tìm thấy nguồn âm thanh được hỗ trợ. Điều này có thể do lỗi CORS hoặc URL không hợp lệ.';
                 break;
             default:
-                errorMessage = `Đã xảy ra một lỗi không xác định: mã ${error.code}. Thông báo: ${error.message}`;
+                errorMessage = `Đã xảy ra một lỗi không xác định: mã ${error.code}.`;
                 break;
         }
     }
@@ -877,3 +883,5 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
+
+    
