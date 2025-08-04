@@ -180,7 +180,7 @@ export default function MusicPage() {
             
             source.connect(analyser);
             analyser.connect(context.destination);
-            analyser.fftSize = 256; // Increased for more detail
+            analyser.fftSize = 256;
             
             audioContextRef.current = context;
             sourceRef.current = source;
@@ -218,20 +218,24 @@ export default function MusicPage() {
               sum += barHeight;
               
               const hue = (i / bufferLength) * 360;
-              ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
-              ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+              if (isVisualizeOnly) {
+                 ctx.fillStyle = `hsla(${hue}, 100%, 75%, 0.8)`;
+              } else {
+                 ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
+              }
+              
+              ctx.fillRect(x, canvas.height - barHeight / 4, barWidth, barHeight / 4);
               x += barWidth + 1;
           }
 
-          // Update album art scale based on average volume
           if (isPlaying) {
               const average = sum / bufferLength;
-              const newScale = 1 + (average / 256) * 0.07; // More sensitive pulse
+              const newScale = 1 + (average / 256) * 0.15; // Increased sensitivity
               setAlbumArtScale(newScale);
           }
       };
       renderFrame();
-  }, [isPlaying]);
+  }, [isPlaying, isVisualizeOnly]);
 
 
   // Effect to handle starting/stopping the visualizer
@@ -789,14 +793,12 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
 
                     <div className="space-y-2">
                         <Label>Tệp âm thanh</Label>
-                        <div className="overflow-hidden rounded-md border">
-                           <Button variant="ghost" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
-                              <Music2 className="mr-2 h-4 w-4"/>
-                              <span className="truncate">
-                                  {audioFile ? audioFile.name : 'Chọn tệp âm thanh...'}
-                              </span>
-                          </Button>
-                        </div>
+                         <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
+                            <Music2 className="mr-2 h-4 w-4"/>
+                            <span className="truncate">
+                                {audioFile ? audioFile.name : 'Chọn tệp âm thanh...'}
+                            </span>
+                        </Button>
                         <input type="file" ref={audioInputRef} onChange={handleAudioChange} className="hidden" accept="audio/*" />
                     </div>
                 </div>
@@ -922,3 +924,5 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
+
+    
