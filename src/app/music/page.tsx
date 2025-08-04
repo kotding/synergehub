@@ -459,7 +459,7 @@ export default function MusicPage() {
         }
     }
     
-    console.error("Audio Element Error:", error);
+    console.error("Audio Element Error Event:", e);
     toast({
         title: "Lỗi tải âm thanh",
         description: errorMessage,
@@ -656,5 +656,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-    
