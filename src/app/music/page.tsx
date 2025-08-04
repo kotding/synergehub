@@ -126,6 +126,7 @@ export default function MusicPage() {
       if (audio.src !== currentTrack.audioUrl) {
         audio.src = currentTrack.audioUrl;
         audio.load();
+        setIsPlaying(true); // Attempt to play when track changes
       }
     }
   }, [currentTrack]);
@@ -138,7 +139,7 @@ export default function MusicPage() {
     if (isPlaying) {
       audio.play().catch(e => {
         console.error("Playback error:", e);
-        setIsPlaying(false);
+        // Don't set isPlaying to false here, as onCanPlay might handle it
       });
     } else {
       audio.pause();
@@ -401,6 +402,7 @@ export default function MusicPage() {
     if (audioRef.current && isPlaying) {
         audioRef.current.play().catch(e => {
            console.error("Playback error onCanPlay:", e);
+           // If playback fails here, we can set isPlaying to false to reflect the state
            setIsPlaying(false);
         });
     }
@@ -453,7 +455,7 @@ export default function MusicPage() {
                                         handlePlayPause();
                                     } else {
                                         setCurrentTrackIndex(targetIndex);
-                                        setIsPlaying(true);
+                                        // isPlaying will be handled by the onCanPlay event
                                     }
                                 }}
                             >
@@ -607,5 +609,3 @@ export default function MusicPage() {
     </>
   );
 }
-
-    
