@@ -137,20 +137,18 @@ export default function MusicPage() {
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && currentTrack?.audioUrl) {
-        // Only change src if it's different to prevent unnecessary reloads
         if(audio.src !== currentTrack.audioUrl) {
             audio.src = currentTrack.audioUrl;
             audio.load();
             if(isPlaying){
                  audio.play().catch(e => {
                     console.error("Playback error on src change:", e);
-                    // This catch is a fallback, the main handler is in handlePlayPause
                 });
             }
         }
     } else if (audio) {
         audio.pause();
-        audio.removeAttribute('src'); // Use removeAttribute to prevent "src=''" error
+        audio.removeAttribute('src');
     }
   }, [currentTrack, isPlaying]);
   
@@ -160,11 +158,9 @@ export default function MusicPage() {
     if (!audio) return;
   
     if (isPlaying) {
-      // Only play if there is a valid src
       if (audio.currentSrc) {
         audio.play().catch(e => {
             console.error("Playback error:", e);
-            // The handleAudioError function will show a toast to the user.
             setIsPlaying(false);
         });
       }
@@ -408,7 +404,6 @@ export default function MusicPage() {
     } else {
         setCurrentTrackIndex(targetIndex);
         if(!isPlaying) {
-          // This will trigger the play effect after src is set and loaded
           setIsPlaying(true);
         }
     }
@@ -733,30 +728,43 @@ function UploadDialog({ open, onOpenChange, onSuccess }: { open: boolean, onOpen
                 <DialogHeader>
                     <DialogTitle>Tải lên bài hát mới</DialogTitle>
                     <DialogDescription>
-                        Chọn tệp âm thanh, ảnh bìa và nhập thông tin cho bài hát của bạn.
+                        Cung cấp thông tin và tệp cho bài hát của bạn.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    <div className="flex items-center gap-4">
-                        <Avatar className="h-24 w-24 rounded-md">
-                           <AvatarImage src={imagePreview ?? "/images/default_music_icon.png"} className="object-cover" />
-                           <AvatarFallback><Music2/></AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-2 overflow-hidden">
-                             <Button variant="outline" className="w-full" onClick={() => imageInputRef.current?.click()}><ImagePlus className="mr-2"/>Chọn ảnh bìa</Button>
-                             <Button variant="outline" className="w-full" onClick={() => audioInputRef.current?.click()}>Chọn tệp âm thanh</Button>
-                             {audioFile && <p className="text-xs text-muted-foreground truncate" title={audioFile.name}>Đã chọn: {audioFile.name}</p>}
+                    <div className="space-y-2">
+                        <Label htmlFor="title">Tên bài hát</Label>
+                        <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="artist">Nghệ sĩ</Label>
+                        <Input id="artist" value={artist} onChange={(e) => setArtist(e.target.value)} />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Ảnh bìa (tùy chọn)</Label>
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-16 w-16 rounded-md">
+                               <AvatarImage src={imagePreview ?? "/images/default_music_icon.png"} className="object-cover" />
+                               <AvatarFallback><Music2/></AvatarFallback>
+                            </Avatar>
+                            <Button variant="outline" className="flex-1" onClick={() => imageInputRef.current?.click()}>
+                                <ImagePlus className="mr-2 h-4 w-4"/>
+                                {imageFile ? 'Thay đổi ảnh' : 'Chọn ảnh'}
+                            </Button>
                         </div>
                         <input type="file" ref={imageInputRef} onChange={handleImageChange} className="hidden" accept="image/*" />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Tệp âm thanh</Label>
+                         <Button variant="outline" className="w-full justify-start text-left font-normal" onClick={() => audioInputRef.current?.click()}>
+                            <Music2 className="mr-2 h-4 w-4"/>
+                            <span className="truncate">
+                                {audioFile ? audioFile.name : 'Chọn tệp âm thanh...'}
+                            </span>
+                        </Button>
                         <input type="file" ref={audioInputRef} onChange={handleAudioChange} className="hidden" accept="audio/*" />
-                    </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="title" className="text-right">Tên bài hát</Label>
-                        <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="col-span-3"/>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="artist" className="text-right">Nghệ sĩ</Label>
-                        <Input id="artist" value={artist} onChange={(e) => setArtist(e.target.value)} className="col-span-3"/>
                     </div>
                 </div>
                 <DialogFooter>
@@ -881,4 +889,3 @@ function EditDialog({ track, open, onOpenChange, onSuccess }: { track: Track, op
         </Dialog>
     );
 }
-
