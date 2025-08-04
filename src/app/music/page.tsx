@@ -402,8 +402,6 @@ export default function MusicPage() {
         if (isPlaying) {
              audioRef.current.play().catch(e => {
                 console.error("Playback error onCanPlay:", e);
-                // If play fails here, it's likely due to browser policy.
-                // We'll keep isPlaying true, so user can manually retry.
              });
         }
       }
@@ -609,3 +607,5 @@ export default function MusicPage() {
     </>
   );
 }
+
+    
